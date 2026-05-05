@@ -1,0 +1,50 @@
+Plan 1 Foundation — Task 37 verification: 2026-05-05T12:19:30Z
+
+Neptune reachability: NOT REACHABLE — load deferred (Neptune is in private subnets of VPC vpc-0dfa5610180dfa628; this host is a public EC2 instance outside the VPC)
+OpenSearch reachability: NOT TESTED — deferred with Neptune (same VPC prerequisite)
+Schema upload: deferred — see make load-schema
+Node load: deferred — 10,644 lines across 17 ndjson files in data/output/ are ready; see make load-graph to run from inside retail VPC
+OS indexing: deferred — components.ndjson (part of the 10,644) ready; see make load-search
+
+retail regression:
+  api SG: sg-0b73007f35715ac99 (from OntologyRetailNetwork stack)
+  api SG diff: UNCHANGED
+  mfg refs in retail SGs: 0 (checked all 6 retail SGs: sg-0b73007f35715ac99, sg-0989c1512a08e85f0, sg-042a74a7cbce90ec2, sg-0f9c24a7a345d916e, sg-0db092be83766a873, sg-07f98a6698032afeb)
+  retail demo HTTPS status: 200 (https://retail-ontology.whchoi.net)
+
+Deferred manual steps (run from inside retail VPC):
+  Prerequisites:
+    - ECS Fargate task in VPC vpc-0dfa5610180dfa628 with IAM role that has Neptune + AOSS permissions, OR
+    - SSM Session Manager port-forward through a bastion in the VPC
+
+  From inside retail VPC (or equivalent):
+    cd /home/ec2-user/my-project/ontology-for-mfg
+
+    # Option A: run all steps via Makefile
+    make load
+
+    # Option B: run steps individually
+    make load-schema
+    make load-graph
+    make load-search
+
+    # Verify after load
+    make verify-graph
+
+  Environment variables needed:
+    NEPTUNE_ENDPOINT=https://ontology-mfg-dev-neptune.cluster-cd4nhqgutps9.ap-northeast-2.neptune.amazonaws.com:8182
+    OPENSEARCH_HOST=klhxy9avzighd1u2ugth.ap-northeast-2.aoss.amazonaws.com
+    AWS_REGION=ap-northeast-2
+
+  Data files ready in data/output/ (total 10,644 lines):
+    manufacturers.ndjson, products.ndjson, modules.ndjson, components.ndjson,
+    raw_materials.ndjson, suppliers.ndjson, sub_suppliers.ndjson, customers.ndjson,
+    plants.ndjson, lanes.ndjson, incidents.ndjson, eight_d_reports.ndjson,
+    root_causes.ndjson, telemetry.ndjson, maintenance.ndjson,
+    esg_indicators.ndjson, esg_carbon_scopes.ndjson
+
+Note: If AOSS permissions fail with the IAM role running the task, add the caller
+principal to the data access policy:
+  aws opensearchserverless create-access-policy --name mfg-loader-access \
+    --type data \
+    --policy '[{"Rules":[{"Resource":["index/ontology-mfg-dev-search/*"],"Permission":["aoss:CreateIndex","aoss:WriteDocument","aoss:UpdateIndex"]}],"Principal":["<task-role-arn>"]}]'
