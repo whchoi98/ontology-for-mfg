@@ -11,6 +11,10 @@ export interface NetworkStackProps extends StackProps {
   vpcIdOverride?: string;
   /** AWS-managed prefix list for CloudFront origin-facing IPs. */
   cloudfrontOriginPrefixListId?: string;
+  /** Optional private subnet IDs (for test contexts where the VPC is a stub). */
+  privateSubnetIds?: string[];
+  /** Optional public subnet IDs (for test contexts where the VPC is a stub). */
+  publicSubnetIds?: string[];
 }
 
 /**
@@ -38,9 +42,13 @@ export class NetworkStack extends Stack {
     const vpcId = vpcIdOverride ?? Fn.importValue(retailVpcExportName);
     this.vpc = ec2.Vpc.fromVpcAttributes(this, 'RetailVpc', {
       vpcId,
-      availabilityZones: Fn.getAzs(),
+      availabilityZones: props.privateSubnetIds
+        ? ['ap-northeast-2a', 'ap-northeast-2b', 'ap-northeast-2c']
+        : Fn.getAzs(),
       // Subnets are discovered at deploy time via Vpc.fromLookup in production;
       // for synth we accept that subnet IDs are not statically required by SG creation.
+      ...(props.privateSubnetIds ? { privateSubnetIds: props.privateSubnetIds } : {}),
+      ...(props.publicSubnetIds  ? { publicSubnetIds:  props.publicSubnetIds  } : {}),
     });
 
     this.albSg = new ec2.SecurityGroup(this, 'MfgAlbSg', {
