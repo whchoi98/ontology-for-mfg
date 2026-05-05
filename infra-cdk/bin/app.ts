@@ -59,10 +59,14 @@ const compute = new ComputeStack(app, `${prefix}-compute`, {
 compute.addDependency(network);
 compute.addDependency(data);
 
+// albDnsName: use context override if provided (e.g. when deploying edge independently
+// after compute is already deployed), otherwise read from compute stack directly so
+// CDK can wire the cross-region reference via SSM/custom-resource machinery.
+const albDnsNameOverride: string | undefined = app.node.tryGetContext('albDnsName');
 const edge = new EdgeStack(app, `${prefix}-edge`, {
   env: envUsEast, crossRegionReferences: true,
   projectName, envName,
-  albDnsName: cdk.Fn.importValue(`${prefix}-alb-dns`),
+  albDnsName: albDnsNameOverride ?? compute.alb.loadBalancerDnsName,
   domainName: 'mfg-ontology.whchoi.net',
   hostedZoneName: 'whchoi.net',
 });

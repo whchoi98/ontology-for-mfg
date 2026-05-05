@@ -1,6 +1,7 @@
 import { Stack, StackProps, CfnOutput, Tags } from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as bedrock from 'aws-cdk-lib/aws-bedrock';
+import * as oss from 'aws-cdk-lib/aws-opensearchserverless';
 import { Construct } from 'constructs';
 
 export interface AIStackProps extends StackProps {
@@ -47,6 +48,7 @@ const GUARDRAIL_TOPICS = [
 
 export class AIStack extends Stack {
   public readonly guardrailId: string;
+  /** KnowledgeBase ID — empty string until post-deploy script creates it (requires pre-existing OS index). */
   public readonly knowledgeBaseId: string;
   public readonly kbRoleArn: string;
 
@@ -101,32 +103,43 @@ export class AIStack extends Stack {
     }));
     this.kbRoleArn = kbRole.roleArn;
 
-    // ==== Bedrock Knowledge Base ====
-    const kb = new bedrock.CfnKnowledgeBase(this, 'KnowledgeBase', {
-      name: `${prefix}-kb`,
-      roleArn: kbRole.roleArn,
-      knowledgeBaseConfiguration: {
-        type: 'VECTOR',
-        vectorKnowledgeBaseConfiguration: {
-          embeddingModelArn: `arn:aws:bedrock:ap-northeast-2::foundation-model/cohere.embed-multilingual-v3`,
-        },
-      },
-      storageConfiguration: {
-        type: 'OPENSEARCH_SERVERLESS',
-        opensearchServerlessConfiguration: {
-          collectionArn: osCollectionArn,
-          vectorIndexName: 'mfg-kb',
-          fieldMapping: { vectorField: 'embedding', textField: 'text', metadataField: 'metadata' },
-        },
-      },
+    // ==== OpenSearch Serverless Data Access Policy (KB role + ECS api task role) ====
+    // AOSS uses its own data access policy (separate from IAM) to control collection access.
+    new oss.CfnAccessPolicy(this, 'OsDataAccessPolicy', {
+      name: `${prefix}-os-access`,
+      type: 'data',
+      policy: JSON.stringify([{
+        Rules: [
+          {
+            ResourceType: 'index',
+            Resource: [`index/${prefix}-search/*`],
+            Permission: [
+              'aoss:CreateIndex', 'aoss:DeleteIndex', 'aoss:UpdateIndex',
+              'aoss:DescribeIndex', 'aoss:ReadDocument', 'aoss:WriteDocument',
+            ],
+          },
+          {
+            ResourceType: 'collection',
+            Resource: [`collection/${prefix}-search`],
+            Permission: ['aoss:CreateCollectionItems', 'aoss:DescribeCollectionItems', 'aoss:UpdateCollectionItems'],
+          },
+        ],
+        Principal: [kbRole.roleArn],
+      }]),
     });
-    this.knowledgeBaseId = kb.attrKnowledgeBaseId;
+
+    // NOTE: Bedrock KnowledgeBase (CfnKnowledgeBase) requires the vector index to exist
+    // in the AOSS collection BEFORE the KB is created. CloudFormation cannot create
+    // AOSS indexes natively. The KB must be created as a post-deploy step:
+    //   1. Create vector index 'mfg-kb' in collection ontology-mfg-dev-search
+    //   2. aws bedrock-agent create-knowledge-base ...
+    // KB role + data access policy are provisioned here so the KB can be added later.
+    this.knowledgeBaseId = 'pending-post-deploy';
 
     Tags.of(this).add('Project', projectName);
     Tags.of(this).add('Env', envName);
 
-    new CfnOutput(this, 'GuardrailId',     { value: this.guardrailId,     exportName: `${prefix}-guardrail-id` });
-    new CfnOutput(this, 'KnowledgeBaseId', { value: this.knowledgeBaseId, exportName: `${prefix}-kb-id` });
-    new CfnOutput(this, 'KbRoleArn',       { value: this.kbRoleArn,       exportName: `${prefix}-kb-role-arn` });
+    new CfnOutput(this, 'GuardrailId', { value: this.guardrailId, exportName: `${prefix}-guardrail-id` });
+    new CfnOutput(this, 'KbRoleArn',   { value: this.kbRoleArn,   exportName: `${prefix}-kb-role-arn` });
   }
 }

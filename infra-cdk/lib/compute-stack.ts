@@ -133,11 +133,13 @@ export class ComputeStack extends Stack {
     });
 
     // ==== Services ====
+    // desiredCount=0 at deploy time — no Docker images in ECR yet.
+    // Plan 2 (image build + push) will update services to desiredCount=2.
     const webService = new ecs.FargateService(this, 'WebService', {
       serviceName: `${prefix}-web`,
       cluster: this.cluster,
       taskDefinition: webTask,
-      desiredCount: 2,
+      desiredCount: 0,
       securityGroups: [webSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
@@ -146,7 +148,7 @@ export class ComputeStack extends Stack {
       serviceName: `${prefix}-api`,
       cluster: this.cluster,
       taskDefinition: apiTask,
-      desiredCount: 2,
+      desiredCount: 0,
       securityGroups: [apiSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,

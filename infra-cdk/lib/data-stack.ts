@@ -65,7 +65,7 @@ export class DataStack extends Stack {
       storageEncrypted: true,
       iamAuthEnabled: true,
       serverlessScalingConfiguration: { minCapacity: 1, maxCapacity: 8 },
-      engineVersion: '1.3.2.0',
+      engineVersion: '1.4.7.0',
     });
     new neptune.CfnDBInstance(this, 'NeptuneInstance', {
       dbClusterIdentifier: neptuneCluster.ref,
@@ -76,7 +76,7 @@ export class DataStack extends Stack {
 
     // ==== Aurora PostgreSQL Serverless v2 ====
     const auroraCluster = new rds.DatabaseCluster(this, 'AuroraCluster', {
-      engine: rds.DatabaseClusterEngine.auroraPostgres({ version: rds.AuroraPostgresEngineVersion.VER_15_5 }),
+      engine: rds.DatabaseClusterEngine.auroraPostgres({ version: rds.AuroraPostgresEngineVersion.VER_15_8 }),
       vpc, securityGroups: [auroraSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       writer: rds.ClusterInstance.serverlessV2('Writer', { autoMinorVersionUpgrade: true }),
@@ -92,12 +92,8 @@ export class DataStack extends Stack {
     this.auroraSecretArn = auroraCluster.secret!.secretArn;
 
     // ==== OpenSearch Serverless (vector + nori) ====
-    const osCollection = new oss.CfnCollection(this, 'OsCollection', {
-      name: `${prefix}-search`,
-      type: 'VECTORSEARCH',
-      description: 'mfg hybrid Nori BM25 + KNN + Telemetry timeseries',
-    });
-    new oss.CfnSecurityPolicy(this, 'OsEncryptionPolicy', {
+    // Encryption policy must exist before the collection is created.
+    const osEncPolicy = new oss.CfnSecurityPolicy(this, 'OsEncryptionPolicy', {
       name: `${prefix}-os-enc`,
       type: 'encryption',
       policy: JSON.stringify({
@@ -106,15 +102,24 @@ export class DataStack extends Stack {
         KmsARN: keyOs.keyArn,
       }),
     });
-    new oss.CfnSecurityPolicy(this, 'OsNetworkPolicy', {
+    // Network policy: public access allowed for dev (no VPCE yet).
+    // AllowFromPublic must be true when SourceVPCEs is absent/empty.
+    const osNetPolicy = new oss.CfnSecurityPolicy(this, 'OsNetworkPolicy', {
       name: `${prefix}-os-net`,
       type: 'network',
       policy: JSON.stringify([{
         Rules: [{ ResourceType: 'collection', Resource: [`collection/${prefix}-search`] }],
-        AllowFromPublic: false,
-        SourceVPCEs: [],  // VPC endpoint added in deploy step
+        AllowFromPublic: true,
       }]),
     });
+    const osCollection = new oss.CfnCollection(this, 'OsCollection', {
+      name: `${prefix}-search`,
+      type: 'VECTORSEARCH',
+      description: 'mfg hybrid Nori BM25 KNN Telemetry timeseries',
+    });
+    // Ensure policies are created before the collection.
+    osCollection.addDependency(osEncPolicy);
+    osCollection.addDependency(osNetPolicy);
     this.osCollectionEndpoint = osCollection.attrCollectionEndpoint;
 
     Tags.of(this).add('Project', projectName);

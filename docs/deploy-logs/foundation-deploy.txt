@@ -1,0 +1,150 @@
+ONTOLOGY-MFG FOUNDATION DEPLOY LOG
+================================================================================
+Date      : 2026-05-05
+Account   : 061525506239
+Regions   : ap-northeast-2 (primary), us-east-1 (edge)
+Deployer  : Claude Code (Task 36 / Plan 1)
+VPC       : vpc-0dfa5610180dfa628 (retail, 10.100.0.0/16)
+Subnets   : private: subnet-07b1e65682847dce9, subnet-095297380cd45e1eb
+            public:  subnet-08486a1e618b1991e, subnet-0c161777c4031c320
+
+================================================================================
+STACK DEPLOY SUMMARY
+================================================================================
+
+1. ontology-mfg-dev-network  (ap-northeast-2)  CREATE_COMPLETE
+   ARN: arn:aws:cloudformation:ap-northeast-2:061525506239:stack/ontology-mfg-dev-network/67019a40-485e-11f1-86e5-02583de391fb
+   Outputs:
+     MfgAlbSgId     = sg-048915a9291970f71
+     MfgApiSgId     = sg-0fd62a078673349b5
+     MfgWebSgId     = sg-013833277b3f991cf
+     MfgAuroraSgId  = sg-0a036ddb6525f69b7
+     MfgNeptuneSgId = sg-0e8f16f83ff4f6b28
+
+2. ontology-mfg-dev-data  (ap-northeast-2)  CREATE_COMPLETE
+   ARN: arn:aws:cloudformation:ap-northeast-2:061525506239:stack/ontology-mfg-dev-data/e0472d10-485f-11f1-90af-027e801d01e1
+   Outputs:
+     NeptuneEndpoint      = ontology-mfg-dev-neptune.cluster-cd4nhqgutps9.ap-northeast-2.neptune.amazonaws.com
+     AuroraSecretArn      = arn:aws:secretsmanager:ap-northeast-2:061525506239:secret:ontology-mfg-dev-aurora-master-31d4d9
+     OsCollectionEndpoint = https://klhxy9avzighd1u2ugth.ap-northeast-2.aoss.amazonaws.com
+     OsCollectionArn      = arn:aws:aoss:ap-northeast-2:061525506239:collection/klhxy9avzighd1u2ugth
+     RawDocsBucketName    = ontology-mfg-dev-raw-docs
+     UploadsBucketName    = ontology-mfg-dev-uploads
+
+3. ontology-mfg-dev-ai  (ap-northeast-2)  CREATE_COMPLETE
+   ARN: arn:aws:cloudformation:ap-northeast-2:061525506239:stack/ontology-mfg-dev-ai/[see console]
+   Outputs:
+     GuardrailId  = 356xcbgyqcpq
+     KbRoleArn    = arn:aws:iam::061525506239:role/ontology-mfg-dev-bedrock-kb-role
+   NOTE: KnowledgeBase deferred to post-deploy (requires AOSS vector index pre-creation).
+         Post-deploy steps:
+           1. Create AOSS vector index 'mfg-kb' in collection klhxy9avzighd1u2ugth
+           2. aws bedrock-agent create-knowledge-base \
+                --name ontology-mfg-dev-kb \
+                --role-arn arn:aws:iam::061525506239:role/ontology-mfg-dev-bedrock-kb-role \
+                --knowledge-base-configuration '{"type":"VECTOR","vectorKnowledgeBaseConfiguration":{"embeddingModelArn":"arn:aws:bedrock:ap-northeast-2::foundation-model/amazon.titan-embed-text-v1"}}' \
+                --storage-configuration '{"type":"OPENSEARCH_SERVERLESS","opensearchServerlessConfiguration":{"collectionArn":"arn:aws:aoss:ap-northeast-2:061525506239:collection/klhxy9avzighd1u2ugth","vectorIndexName":"mfg-kb","fieldMapping":{"vectorField":"embedding","textField":"text","metadataField":"metadata"}}}'
+
+4. ontology-mfg-dev-compute  (ap-northeast-2)  CREATE_COMPLETE
+   ARN: arn:aws:cloudformation:ap-northeast-2:061525506239:stack/ontology-mfg-dev-compute/167f5030-4872-11f1-a3e1-02e0337bb819
+   Outputs:
+     AlbDnsName  = ontology-mfg-dev-alb-420189527.ap-northeast-2.elb.amazonaws.com
+     WebRepoUri  = 061525506239.dkr.ecr.ap-northeast-2.amazonaws.com/ontology-mfg-dev-web
+     ApiRepoUri  = 061525506239.dkr.ecr.ap-northeast-2.amazonaws.com/ontology-mfg-dev-api
+     ClusterName = ontology-mfg-dev-cluster
+   NOTE: ECS services deployed with desiredCount=0 (no images in ECR yet).
+         Plan 2 (image build) will push images and update services to desiredCount=2.
+
+5. ontology-mfg-dev-edge  (us-east-1)  CREATE_COMPLETE
+   ARN: arn:aws:cloudformation:us-east-1:061525506239:stack/ontology-mfg-dev-edge/dac0f140-4874-11f1-ba79-0afffb7187cf
+   Outputs:
+     CloudFrontDomainName = d2talte8jtmza3.cloudfront.net
+     UserPoolId           = us-east-1_zQZZJRYer
+     UserPoolClientId     = 422o42g8odcmv21860cu2jta4
+   Seed users: admin@whchoi.net (group: admin), demo@whchoi.net (group: buyer)
+   Password:   ***ROTATED*** (set via Cognito adminSetUserPassword custom resource)
+   Cognito domain: ontology-mfg-dev.auth.us-east-1.amazoncognito.com
+
+6. ontology-mfg-dev-observability  (ap-northeast-2)  CREATE_COMPLETE
+   ARN: arn:aws:cloudformation:ap-northeast-2:061525506239:stack/ontology-mfg-dev-observability/66544bd0-4875-11f1-a808-062b41a27251
+   Outputs:
+     DashboardName = ontology-mfg-dev-demo-health
+
+================================================================================
+ISSUES ENCOUNTERED AND RESOLUTIONS
+================================================================================
+
+1. SG description non-ASCII characters (network-stack.ts)
+   Fix: Replaced Unicode arrow (→) and ASCII -> with "to" (e.g., "api to Aurora port 5432").
+   EC2 allowed charset: a-zA-Z0-9. _-:/()#,@[]+=&;{}!$*
+
+2. VPC AZ count mismatch (network-stack.ts)
+   Fix: Dynamic AZ slice based on subnet count instead of hardcoded 3-AZ list.
+
+3. AOSS network policy with empty SourceVPCEs (data-stack.ts)
+   Fix: Changed AllowFromPublic to true for dev (no VPCE yet). Production should add VPCE.
+
+4. AOSS creation ordering (data-stack.ts)
+   Fix: Added osCollection.addDependency(osEncPolicy/osNetPolicy) for correct ordering.
+
+5. Neptune engine version 1.3.2.0 not available (data-stack.ts)
+   Fix: Changed to 1.4.7.0 (latest available in ap-northeast-2).
+
+6. Aurora PostgreSQL VER_15_5 not available (data-stack.ts)
+   Fix: Changed to VER_15_8 (available in ap-northeast-2).
+
+7. Bedrock KnowledgeBase 403 / missing AOSS vector index (ai-stack.ts)
+   Fix: Removed CfnKnowledgeBase from CDK — KB requires vector index to pre-exist.
+        Added AOSS CfnAccessPolicy for KB role. KB provisioned post-deploy (see note above).
+
+8. ECS services stuck in CREATE_IN_PROGRESS (compute-stack.ts)
+   Fix: Changed desiredCount from 2 to 0. CloudFormation stabilization requires running
+        tasks; with empty ECR repos the services would never stabilize.
+
+9. Wrong public subnet IDs (bin/app.ts context)
+   Fix: Corrected publicSubnetIds to subnet-08486a1e618b1991e,subnet-0c161777c4031c320
+        (the original IDs subnet-0ed2f5ccc979dd5c4,subnet-0f2a069dbb69d1de8 do not exist).
+
+10. Cross-region ALB DNS reference (bin/app.ts)
+    Fix: Changed cdk.Fn.importValue() to compute.alb.loadBalancerDnsName so CDK generates
+         CrossRegionExportWriter (ap-northeast-2) + CrossRegionExportReader (us-east-1)
+         via SSM Parameter Store. Raw Fn::ImportValue cannot cross regions.
+
+================================================================================
+POST-DEPLOY REQUIRED ACTIONS
+================================================================================
+
+A) Create AOSS vector index for Bedrock KB:
+   collection endpoint: https://klhxy9avzighd1u2ugth.ap-northeast-2.aoss.amazonaws.com
+   index name: mfg-kb
+   dimension: 1536 (Titan Embed Text v1)
+   method: hnsw, engine: nmslib
+
+   Example (using curl + AWS SigV4):
+   PUT /mfg-kb
+   {
+     "settings": { "index": { "knn": true } },
+     "mappings": {
+       "properties": {
+         "embedding": { "type": "knn_vector", "dimension": 1536, "method": { "name": "hnsw", "engine": "nmslib" } },
+         "text":      { "type": "text" },
+         "metadata":  { "type": "text" }
+       }
+     }
+   }
+
+B) Create Bedrock Knowledge Base (after vector index exists):
+   See KB creation command in stack 3 notes above.
+
+C) Push Docker images to ECR (Plan 2):
+   web: 061525506239.dkr.ecr.ap-northeast-2.amazonaws.com/ontology-mfg-dev-web:latest
+   api: 061525506239.dkr.ecr.ap-northeast-2.amazonaws.com/ontology-mfg-dev-api:latest
+   After push: update ECS services to desiredCount=2.
+
+D) Add custom domain to CloudFront (requires Route53 delegation to whchoi.net):
+   Target domain: mfg-ontology.whchoi.net
+   CloudFront: d2talte8jtmza3.cloudfront.net
+
+================================================================================
+END OF LOG
+================================================================================
