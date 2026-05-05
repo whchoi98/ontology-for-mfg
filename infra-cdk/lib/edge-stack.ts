@@ -150,11 +150,11 @@ export class EdgeStack extends Stack {
     });
 
     // ==== ACM Certificate (us-east-1, required for CloudFront) ====
-    // certArn is passed via cdk context when cert is validated
-    const certArn = this.node.tryGetContext('certArn') as string | undefined;
-    const cert = certArn
-      ? acm.Certificate.fromCertificateArn(this, 'Cert', certArn)
-      : undefined;
+    // Wildcard *.whchoi.net cert from current account (061525506239), pre-issued.
+    // Override via cdk context `certArn` if needed.
+    const certArn = (this.node.tryGetContext('certArn') as string | undefined)
+      ?? 'arn:aws:acm:us-east-1:061525506239:certificate/7d53182a-2a2a-4225-a319-4f94030561b7';
+    const cert = acm.Certificate.fromCertificateArn(this, 'Cert', certArn);
 
     // ==== CloudFront Distribution ====
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
@@ -166,16 +166,14 @@ export class EdgeStack extends Stack {
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
         originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
         edgeLambdas: [{
           functionVersion: edgeFn.currentVersion,
           eventType: cloudfront.LambdaEdgeEventType.VIEWER_REQUEST,
         }],
       },
-      // Custom domain + ACM cert wired when certArn context is provided
-      ...(cert ? {
-        domainNames: [props.domainName],
-        certificate: cert,
-      } : {}),
+      domainNames: [props.domainName],
+      certificate: cert,
       comment: `${prefix} mfg-ontology distribution`,
     });
 
