@@ -1,0 +1,78 @@
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix mfg:  <https://amzn.tech/mfg/ontology#> .
+
+# ==== Classes (22) ====
+
+# BOM 계층 (4)
+mfg:Product       a owl:Class ; rdfs:label "Product" .
+mfg:Module        a owl:Class ; rdfs:label "Module" .
+mfg:Component     a owl:Class ; rdfs:label "Component" .
+mfg:RawMaterial   a owl:Class ; rdfs:label "RawMaterial" .
+
+# Supply 양면 (5)
+mfg:Manufacturer    a owl:Class ; rdfs:label "Manufacturer" .
+mfg:Supplier        a owl:Class ; rdfs:label "Supplier" .
+mfg:SubSupplier     a owl:Class ; rdfs:label "SubSupplier" .
+mfg:CustomerAccount a owl:Class ; rdfs:label "CustomerAccount" .
+mfg:Plant           a owl:Class ; rdfs:label "Plant" .
+
+# Geo / 운송 (2)
+mfg:Region    a owl:Class ; rdfs:label "Region" .
+mfg:TradeLane a owl:Class ; rdfs:label "TradeLane" .
+
+# 표준 / 규제 (4)
+mfg:Standard      a owl:Class ; rdfs:label "Standard" .
+mfg:Certification a owl:Class ; rdfs:label "Certification" .
+mfg:Regulation    a owl:Class ; rdfs:label "Regulation" .
+mfg:Substance     a owl:Class ; rdfs:label "Substance" .
+
+# 품질 (3)
+mfg:QualityIncident a owl:Class ; rdfs:label "QualityIncident" .
+mfg:EightDReport    a owl:Class ; rdfs:label "EightDReport" .
+mfg:RootCause       a owl:Class ; rdfs:label "RootCause" .
+
+# 운영 / ESG (4)
+mfg:Telemetry        a owl:Class ; rdfs:label "Telemetry" .
+mfg:MaintenanceEvent a owl:Class ; rdfs:label "MaintenanceEvent" .
+mfg:ESGIndicator     a owl:Class ; rdfs:label "ESGIndicator" .
+mfg:CarbonScope      a owl:Class ; rdfs:label "CarbonScope" .
+
+# ==== Object Properties (relations, 18+) ====
+
+# BOM
+mfg:hasModule    a owl:ObjectProperty ; rdfs:domain mfg:Product ;   rdfs:range mfg:Module .
+mfg:consistsOf   a owl:ObjectProperty ; rdfs:domain mfg:Module ;    rdfs:range mfg:Component .
+mfg:madeOf       a owl:ObjectProperty ; rdfs:domain mfg:Component ; rdfs:range mfg:RawMaterial .
+
+# Supply
+mfg:manufacturedBy a owl:ObjectProperty ; rdfs:domain mfg:Product ;      rdfs:range mfg:Manufacturer .
+mfg:operates       a owl:ObjectProperty ; rdfs:domain mfg:Manufacturer ; rdfs:range mfg:Plant .
+mfg:locatedIn      a owl:ObjectProperty ; rdfs:domain mfg:Plant ;        rdfs:range mfg:Region .
+mfg:suppliedBy     a owl:ObjectProperty ; rdfs:domain mfg:Component ;    rdfs:range mfg:Supplier .
+mfg:subSupplies    a owl:ObjectProperty ; rdfs:domain mfg:Supplier ;     rdfs:range mfg:SubSupplier .
+mfg:soldTo         a owl:ObjectProperty ; rdfs:domain mfg:Product ;      rdfs:range mfg:CustomerAccount .
+
+# Lane
+mfg:connects     a owl:ObjectProperty ; rdfs:domain mfg:TradeLane ; rdfs:range mfg:Region .
+mfg:shipsVia     a owl:ObjectProperty ; rdfs:domain mfg:Plant ;     rdfs:range mfg:TradeLane .
+mfg:subjectTo    a owl:ObjectProperty ; rdfs:domain mfg:TradeLane ; rdfs:range mfg:Regulation .
+
+# Compliance
+mfg:conformsTo       a owl:ObjectProperty ; rdfs:domain mfg:Component ; rdfs:range mfg:Standard .
+mfg:certifiedBy      a owl:ObjectProperty ; rdfs:domain mfg:Component ; rdfs:range mfg:Certification .
+mfg:containsSubstance a owl:ObjectProperty ; rdfs:domain mfg:Component ; rdfs:range mfg:Substance .
+mfg:regulatedBy      a owl:ObjectProperty ; rdfs:domain mfg:Substance ; rdfs:range mfg:Regulation .
+
+# Quality
+mfg:about        a owl:ObjectProperty ; rdfs:domain mfg:QualityIncident ; rdfs:range mfg:Component .
+mfg:addresses    a owl:ObjectProperty ; rdfs:domain mfg:EightDReport ;    rdfs:range mfg:QualityIncident .
+mfg:identifies   a owl:ObjectProperty ; rdfs:domain mfg:EightDReport ;    rdfs:range mfg:RootCause .
+mfg:linkedTo     a owl:ObjectProperty ; rdfs:domain mfg:RootCause ;       rdfs:range mfg:Supplier .
+
+# Ops / ESG
+mfg:from        a owl:ObjectProperty ; rdfs:domain mfg:Telemetry ;        rdfs:range mfg:Plant .
+mfg:on          a owl:ObjectProperty ; rdfs:domain mfg:MaintenanceEvent ; rdfs:range mfg:Component .
+mfg:measuredAt  a owl:ObjectProperty ; rdfs:domain mfg:ESGIndicator ;     rdfs:range mfg:Plant .
+mfg:emits       a owl:ObjectProperty ; rdfs:domain mfg:Plant ;            rdfs:range mfg:CarbonScope .
