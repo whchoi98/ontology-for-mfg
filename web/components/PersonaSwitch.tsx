@@ -14,12 +14,14 @@ const PERSONAS: { id: Persona; label: string; emoji: string }[] = [
 export function PersonaSwitch({ active }: { active: Persona }) {
   const router = useRouter();
   const path = usePathname();
-  const root = path.split("/")[2] ?? "";  // /(buyer)/search → "search"
+  // URL shape: /buyer/search → segments[1]=buyer, segments[2]=search
+  const segments = path.split("/");
+  const scenario = segments[2] ?? "";  // e.g. "search", "chat", "lane"
   return (
     <nav className="flex gap-2 p-3 border-b bg-white">
       {PERSONAS.map((p) => (
         <button key={p.id}
-          onClick={() => router.push(`/(${p.id})/${root || ""}`)}
+          onClick={() => router.push(`/${p.id}${scenario ? `/${scenario}` : ""}`)}
           className={`px-3 py-1.5 rounded-md text-sm transition ${
             active === p.id ? "bg-blue-600 text-white" : "bg-neutral-100 hover:bg-neutral-200"
           }`}>
