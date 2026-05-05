@@ -1,0 +1,6 @@
+/* web/app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+:root { --bg: #fafafa; --fg: #18181b; }
+body { font-feature-settings: "tnum"; }
