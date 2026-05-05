@@ -6,7 +6,6 @@ to enforce structured array output, parsed back into pydantic models by callers.
 from __future__ import annotations
 import json
 import os
-from typing import Any
 import boto3
 
 
