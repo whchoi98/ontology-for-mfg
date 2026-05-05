@@ -1,0 +1,37 @@
+Plan 2 Task 18 — API container deploy: 2026-05-05T14:23:35Z
+Image: 061525506239.dkr.ecr.ap-northeast-2.amazonaws.com/ontology-mfg-dev-api:latest
+Digest: sha256:90176360002e5619a8a19ae9478a4605c32f18be8d910dd818a2b302f2607948
+ALB: http://ontology-mfg-dev-alb-420189527.ap-northeast-2.elb.amazonaws.com  (CloudFront-only access — direct EC2→ALB blocked by SG)
+CloudFront: https://d2talte8jtmza3.cloudfront.net  (Cognito-protected; /healthz returns 302→Cognito login)
+
+ECS Service Status:
+{
+    "desired": 2,
+    "running": 2,
+    "pending": 0,
+    "status": "ACTIVE"
+}
+
+ALB Target Group Health:
+[
+    {
+        "ip": "10.100.25.12",
+        "state": "healthy"
+    },
+    {
+        "ip": "10.100.39.115",
+        "state": "healthy"
+    }
+]
+
+CW Healthcheck Evidence:
+GET /healthz HTTP/1.1" 200 OK  (confirmed in /aws/ecs/ontology-mfg-dev-api streams)
+
+AOSS Data Access Policy:
+Updated ontology-mfg-dev-os-access to include arn:aws:iam::061525506239:role/ontology-mfg-dev-ecs-task-role-api
+
+Notes:
+- ALB SG restricts inbound to CloudFront prefix list pl-22a6434b (by design)
+- CloudFront has Cognito auth — /healthz and /api/healthz redirect to Cognito login page
+- Direct healthcheck evidence confirmed via CW logs: both tasks serving 200 on /healthz
+- Auth middleware: /healthz exempt, /api/* returns 401 without bearer token
