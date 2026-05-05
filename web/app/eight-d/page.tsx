@@ -3,8 +3,33 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useActivePersona } from "@/lib/persona-context";
+import type { Persona } from "@/lib/types";
 
 interface EightDSection { section: string; title: string; content: string; }
+
+type Sample = { label: string; persona: Persona; incidentId: string };
+
+const EIGHTD_INCIDENTS: Sample[] = [
+  { label: "INC-2026-0412 (BGA 솔더볼 균열, CRITICAL)",            persona: "quality",  incidentId: "INC-2026-0412" },
+  { label: "INC-2026-0050 (PCB 박리, HIGH)",                       persona: "quality",  incidentId: "INC-2026-0050" },
+  { label: "INC-2026-0100 (커패시터 누설, MID)",                   persona: "engineer", incidentId: "INC-2026-0100" },
+];
+
+const PERSONA_TONE: Record<Persona, string> = {
+  buyer:    "border-blue-500/40    bg-blue-500/10    text-blue-200",
+  engineer: "border-emerald-500/40 bg-emerald-500/10 text-emerald-200",
+  quality:  "border-amber-500/40   bg-amber-500/10   text-amber-200",
+  scm:      "border-rose-500/40    bg-rose-500/10    text-rose-200",
+  plant:    "border-violet-500/40  bg-violet-500/10  text-violet-200",
+};
+
+const PERSONA_LABEL: Record<Persona, string> = {
+  buyer:    "Buyer 구매",
+  engineer: "Engineer R&D",
+  quality:  "Quality 품질",
+  scm:      "SCM 공급망",
+  plant:    "Plant 생산",
+};
 
 const SECTION_LABELS: Record<string, string> = {
   D1: "D1 — 팀 구성 (Team Formation)",
@@ -18,18 +43,24 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 export default function EightDPage() {
-  const { active } = useActivePersona();
+  const { active, setActive } = useActivePersona();
   const [incidentId, setIncidentId] = useState("INC-2026-0412");
   const [sections, setSections] = useState<EightDSection[]>([]);
   const [open, setOpen] = useState<Set<string>>(new Set(["D1"]));
   const [loading, setLoading] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function runEightD(id?: string) {
+    const target = id ?? incidentId;
+    if (!target.trim()) return;
     setLoading(true);
-    const r = (await api.eightD(incidentId)) as { sections?: EightDSection[] };
+    const r = (await api.eightD(target)) as { sections?: EightDSection[] };
     setSections(r.sections ?? []);
     setLoading(false);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    runEightD();
   }
 
   function toggle(sec: string) {
@@ -51,7 +82,34 @@ export default function EightDPage() {
         <h1 className="text-2xl font-bold text-ink-50 mb-1">8D 보고서 자동 생성</h1>
         <p className="text-sm text-ink-400 mb-2">인시던트 ID 입력 → D1-D8 전체 보고서 자동 생성</p>
         <p className="text-xs text-orange-300 mb-4">★ WOW: 15초 안에 8개 섹션 전체 8D 보고서가 완성됩니다</p>
-        <form onSubmit={submit} className="flex gap-2 mb-6">
+
+        {sections.length === 0 && (
+          <div className="mb-5">
+            <div className="text-xs uppercase tracking-wider text-ink-400 font-semibold mb-2">
+              인시던트 선택 — 클릭하면 바로 생성됩니다
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {EIGHTD_INCIDENTS.map((p, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => { setActive(p.persona); setIncidentId(p.incidentId); runEightD(p.incidentId); }}
+                  className="group flex items-start gap-2 text-left px-3 py-2.5 rounded-lg border border-ink-700 bg-ink-900 hover:border-accent-500/60 hover:bg-ink-800 transition disabled:opacity-50"
+                >
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 mt-0.5 ${PERSONA_TONE[p.persona]}`}>
+                    {PERSONA_LABEL[p.persona]}
+                  </span>
+                  <span className="text-sm text-ink-200 leading-relaxed group-hover:text-accent-200">
+                    {p.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex gap-2 mb-6">
           <input
             className="flex-1 bg-ink-800 border border-ink-700 rounded-md px-3 py-2.5 text-sm text-ink-100 outline-none focus:border-accent-500 placeholder:text-ink-500"
             placeholder="인시던트 ID (예: INC-2026-0412)"
