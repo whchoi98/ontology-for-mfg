@@ -141,13 +141,12 @@ export class ComputeStack extends Stack {
     });
 
     // ==== Services ====
-    // Plan 2 Task 18: API image pushed to ECR; desiredCount set to 2.
-    // Web service remains at desiredCount=0 until web image is built.
+    // Plan 2 Tasks 26-28: Web image built + pushed; desiredCount 0 → 2.
     const webService = new ecs.FargateService(this, 'WebService', {
       serviceName: `${prefix}-web`,
       cluster: this.cluster,
       taskDefinition: webTask,
-      desiredCount: 0,
+      desiredCount: 2,
       securityGroups: [webSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,

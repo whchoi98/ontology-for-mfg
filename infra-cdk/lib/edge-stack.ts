@@ -2,6 +2,7 @@ import { Stack, StackProps, RemovalPolicy, Duration, CfnOutput, Tags } from 'aws
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cr from 'aws-cdk-lib/custom-resources';
@@ -148,6 +149,13 @@ export class EdgeStack extends Stack {
       code: lambda.Code.fromInline(edgeCode),
     });
 
+    // ==== ACM Certificate (us-east-1, required for CloudFront) ====
+    // certArn is passed via cdk context when cert is validated
+    const certArn = this.node.tryGetContext('certArn') as string | undefined;
+    const cert = certArn
+      ? acm.Certificate.fromCertificateArn(this, 'Cert', certArn)
+      : undefined;
+
     // ==== CloudFront Distribution ====
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultRootObject: '',
@@ -163,7 +171,11 @@ export class EdgeStack extends Stack {
           eventType: cloudfront.LambdaEdgeEventType.VIEWER_REQUEST,
         }],
       },
-      // Custom domain + ACM cert added when zone is reachable; for synth we skip.
+      // Custom domain + ACM cert wired when certArn context is provided
+      ...(cert ? {
+        domainNames: [props.domainName],
+        certificate: cert,
+      } : {}),
       comment: `${prefix} mfg-ontology distribution`,
     });
 
