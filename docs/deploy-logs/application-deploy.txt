@@ -1,0 +1,41 @@
+Plan 2 Tasks 26-28 complete: 2026-05-05T15:11:48Z
+
+Web image: 061525506239.dkr.ecr.ap-northeast-2.amazonaws.com/ontology-mfg-dev-web:latest
+  digest: sha256:52f44d9be749e9dbf8249eef3b026118f16510e5ada14418764c21a2b4a4441c
+  pushed: 2026-05-05T14:40:54Z (ARM64, node:20-slim, standalone)
+
+ComputeStack:
+  Web ECS desiredCount: 2
+  Web ECS runningCount: 2
+  NEXT_PUBLIC_API_BASE: /api
+
+EdgeStack:
+  CloudFront distribution: E3768XPWZT7661
+  Default domain: d2talte8jtmza3.cloudfront.net
+  Custom domain: mfg-ontology.whchoi.net
+  ACM cert: arn:aws:acm:us-east-1:061525506239:certificate/7d53182a-2a2a-4225-a319-4f94030561b7 (*.whchoi.net)
+  Distribution status: Deployed
+
+DNS (managed in account 507115347197 by user):
+  mfg-ontology.whchoi.net CNAME → d2talte8jtmza3.cloudfront.net ✓
+
+Default domain smoke test:
+  https://d2talte8jtmza3.cloudfront.net: 302 (302→Cognito expected)
+
+Custom domain smoke test:
+  https://mfg-ontology.whchoi.net: 302 (302→Cognito expected)
+
+13-route smoke test (GET, --max-redirs 0; 302=auth guard active, 403=POST not allowed):
+  /api/search: 302
+  /api/chat: 302
+  /api/insights: 302
+  /api/spec-match: 302
+  /api/compliance: 302
+  /api/substitute: 302
+  /api/price: 302
+  /api/lane: 302
+  /api/lane/reroute: 302
+  /api/supplier-rfm: 302
+  /api/eight-d: 302
+  /api/esg: 302
+  /api/pdm: 302
