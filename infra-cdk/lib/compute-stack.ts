@@ -1,3 +1,4 @@
+import * as cdk from 'aws-cdk-lib';
 import { Stack, StackProps, RemovalPolicy, CfnOutput, Tags } from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
@@ -129,12 +130,19 @@ export class ComputeStack extends Stack {
       logging: ecs.LogDrivers.awsLogs({ logGroup: apiLogs, streamPrefix: 'api' }),
       environment: {
         AWS_REGION: this.region,
+        NEPTUNE_ENDPOINT: cdk.Fn.sub('https://${Endpoint}:8182', {
+          Endpoint: cdk.Fn.importValue(`${prefix}-neptune-endpoint`),
+        }),
+        // os-endpoint export is "https://<host>" — strip prefix to get bare host
+        OPENSEARCH_HOST: cdk.Fn.select(2, cdk.Fn.split('/', cdk.Fn.importValue(`${prefix}-os-endpoint`))),
+        BEDROCK_GUARDRAIL_ID: cdk.Fn.importValue(`${prefix}-guardrail-id`),
+        AURORA_SECRET_ARN: cdk.Fn.importValue(`${prefix}-aurora-secret-arn`),
       },
     });
 
     // ==== Services ====
-    // desiredCount=0 at deploy time — no Docker images in ECR yet.
-    // Plan 2 (image build + push) will update services to desiredCount=2.
+    // Plan 2 Task 18: API image pushed to ECR; desiredCount set to 2.
+    // Web service remains at desiredCount=0 until web image is built.
     const webService = new ecs.FargateService(this, 'WebService', {
       serviceName: `${prefix}-web`,
       cluster: this.cluster,
@@ -148,7 +156,7 @@ export class ComputeStack extends Stack {
       serviceName: `${prefix}-api`,
       cluster: this.cluster,
       taskDefinition: apiTask,
-      desiredCount: 0,
+      desiredCount: 2,
       securityGroups: [apiSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
