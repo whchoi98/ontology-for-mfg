@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+cdk.out/
+.cdk.staging/
+data/output/
+.env
+.DS_Store
+*.swp
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
