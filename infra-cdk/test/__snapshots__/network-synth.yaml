@@ -1,0 +1,218 @@
+[Warning at /ontology-mfg-dev-network/RetailVpc] fromVpcAttributes: 'availabilityZones' is a list token: the imported VPC will not work with constructs that require a list of subnets at synthesis time. Use 'Vpc.fromLookup()' or 'Fn.importListValue' instead. [ack: @aws-cdk/aws-ec2:vpcAttributeIsListTokenavailabilityZones]
+Resources:
+  MfgAlbSg4C917963:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "mfg-alb-sg: CloudFront origin-facing prefix list ingress"
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      Tags:
+        - Key: Env
+          Value: dev
+        - Key: Project
+          Value: ontology-mfg
+      VpcId:
+        Fn::ImportValue: ontology-retail-dev-vpc-id
+    Metadata:
+      aws:cdk:path: ontology-mfg-dev-network/MfgAlbSg/Resource
+  MfgAlbSgfrompl22a6434b80BBF1F013:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: CloudFront → ALB :80
+      FromPort: 80
+      GroupId:
+        Fn::GetAtt:
+          - MfgAlbSg4C917963
+          - GroupId
+      IpProtocol: tcp
+      SourcePrefixListId: pl-22a6434b
+      ToPort: 80
+    Metadata:
+      aws:cdk:path: ontology-mfg-dev-network/MfgAlbSg/from pl-22a6434b:80
+  MfgWebSg071A8B7A:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "mfg-web-sg: Next.js Fargate :3000"
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      Tags:
+        - Key: Env
+          Value: dev
+        - Key: Project
+          Value: ontology-mfg
+      VpcId:
+        Fn::ImportValue: ontology-retail-dev-vpc-id
+    Metadata:
+      aws:cdk:path: ontology-mfg-dev-network/MfgWebSg/Resource
+  MfgWebSgfromontologymfgdevnetworkMfgAlbSg297384E63000FF0219BA:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: ALB → web :3000
+      FromPort: 3000
+      GroupId:
+        Fn::GetAtt:
+          - MfgWebSg071A8B7A
+          - GroupId
+      IpProtocol: tcp
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - MfgAlbSg4C917963
+          - GroupId
+      ToPort: 3000
+    Metadata:
+      aws:cdk:path: ontology-mfg-dev-network/MfgWebSg/from ontologymfgdevnetworkMfgAlbSg297384E6:3000
+  MfgApiSgC4CAFE86:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "mfg-api-sg: FastAPI Fargate :8000"
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      Tags:
+        - Key: Env
+          Value: dev
+        - Key: Project
+          Value: ontology-mfg
+      VpcId:
+        Fn::ImportValue: ontology-retail-dev-vpc-id
+    Metadata:
+      aws:cdk:path: ontology-mfg-dev-network/MfgApiSg/Resource
+  MfgApiSgfromontologymfgdevnetworkMfgAlbSg297384E680009A25E8AF:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: ALB → api :8000
+      FromPort: 8000
+      GroupId:
+        Fn::GetAtt:
+          - MfgApiSgC4CAFE86
+          - GroupId
+      IpProtocol: tcp
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - MfgAlbSg4C917963
+          - GroupId
+      ToPort: 8000
+    Metadata:
+      aws:cdk:path: ontology-mfg-dev-network/MfgApiSg/from ontologymfgdevnetworkMfgAlbSg297384E6:8000
+  MfgAuroraSgAAAF44D9:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "mfg-aurora-sg: api → Aurora :5432"
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      Tags:
+        - Key: Env
+          Value: dev
+        - Key: Project
+          Value: ontology-mfg
+      VpcId:
+        Fn::ImportValue: ontology-retail-dev-vpc-id
+    Metadata:
+      aws:cdk:path: ontology-mfg-dev-network/MfgAuroraSg/Resource
+  MfgAuroraSgfromontologymfgdevnetworkMfgApiSg62A6D08454328D27FB85:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: api → Aurora
+      FromPort: 5432
+      GroupId:
+        Fn::GetAtt:
+          - MfgAuroraSgAAAF44D9
+          - GroupId
+      IpProtocol: tcp
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - MfgApiSgC4CAFE86
+          - GroupId
+      ToPort: 5432
+    Metadata:
+      aws:cdk:path: ontology-mfg-dev-network/MfgAuroraSg/from ontologymfgdevnetworkMfgApiSg62A6D084:5432
+  MfgNeptuneSg400FB2D8:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "mfg-neptune-sg: api → Neptune :8182"
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      Tags:
+        - Key: Env
+          Value: dev
+        - Key: Project
+          Value: ontology-mfg
+      VpcId:
+        Fn::ImportValue: ontology-retail-dev-vpc-id
+    Metadata:
+      aws:cdk:path: ontology-mfg-dev-network/MfgNeptuneSg/Resource
+  MfgNeptuneSgfromontologymfgdevnetworkMfgApiSg62A6D08481820CBC5F13:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: api → Neptune Gremlin
+      FromPort: 8182
+      GroupId:
+        Fn::GetAtt:
+          - MfgNeptuneSg400FB2D8
+          - GroupId
+      IpProtocol: tcp
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - MfgApiSgC4CAFE86
+          - GroupId
+      ToPort: 8182
+    Metadata:
+      aws:cdk:path: ontology-mfg-dev-network/MfgNeptuneSg/from ontologymfgdevnetworkMfgApiSg62A6D084:8182
+  CDKMetadata:
+    Type: AWS::CDK::Metadata
+    Properties:
+      Analytics: v2:deflate64:H4sIAAAAAAAA/33JQQrCMBBA0bN0n4xxwBO4EFdCe4ASp6NMq0nJZCxSencR964+vI+AB4TQxEU9DZN/yBXWrkaaXMuarRC7uGjPhLB2TFakvk8l2+yOt/QfzuleWHX7jovV2ermUh4YRt29MAAG2DejivhiqcqTof31A/tX2H2VAAAA
+    Metadata:
+      aws:cdk:path: ontology-mfg-dev-network/CDKMetadata/Default
+Outputs:
+  MfgApiSgId:
+    Value:
+      Fn::GetAtt:
+        - MfgApiSgC4CAFE86
+        - GroupId
+    Export:
+      Name: ontology-mfg-dev-api-sg-id
+  MfgAlbSgId:
+    Value:
+      Fn::GetAtt:
+        - MfgAlbSg4C917963
+        - GroupId
+    Export:
+      Name: ontology-mfg-dev-alb-sg-id
+  MfgWebSgId:
+    Value:
+      Fn::GetAtt:
+        - MfgWebSg071A8B7A
+        - GroupId
+    Export:
+      Name: ontology-mfg-dev-web-sg-id
+  MfgAuroraSgId:
+    Value:
+      Fn::GetAtt:
+        - MfgAuroraSgAAAF44D9
+        - GroupId
+    Export:
+      Name: ontology-mfg-dev-aurora-sg-id
+  MfgNeptuneSgId:
+    Value:
+      Fn::GetAtt:
+        - MfgNeptuneSg400FB2D8
+        - GroupId
+    Export:
+      Name: ontology-mfg-dev-neptune-sg-id
+Parameters:
+  BootstrapVersion:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cdk-bootstrap/hnb659fds/version
+    Description: Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]
+
+68 feature flags are not configured. Run 'cdk flags --unstable=flags' to learn more.
