@@ -1,0 +1,28 @@
+// Lambda@Edge viewer-request: redirect to Cognito Hosted UI when JWT cookie missing/expired.
+// Values substituted at synth time by EdgeStack (no process.env at edge).
+'use strict';
+
+const COGNITO_DOMAIN = '{{COGNITO_DOMAIN}}';
+const CLIENT_ID      = '{{CLIENT_ID}}';
+const CALLBACK_URL   = '{{CALLBACK_URL}}';
+
+exports.handler = async (event) => {
+  const request = event.Records[0].cf.request;
+  const headers = request.headers;
+  const cookieHeader = headers.cookie ? headers.cookie[0].value : '';
+  const hasIdToken = /(?:^|;\s*)mfg_id_token=/.test(cookieHeader);
+
+  if (request.uri.startsWith('/api/auth/callback') || request.uri.startsWith('/api/auth/logout')) {
+    return request;
+  }
+
+  if (!hasIdToken) {
+    const loginUrl = 'https://' + COGNITO_DOMAIN + '/login?client_id=' + CLIENT_ID
+      + '&response_type=code&scope=openid+email&redirect_uri=' + encodeURIComponent(CALLBACK_URL);
+    return {
+      status: '302', statusDescription: 'Found',
+      headers: { location: [{ key: 'Location', value: loginUrl }] },
+    };
+  }
+  return request;
+};
