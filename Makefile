@@ -2,6 +2,7 @@
 
 data:
 	python -m data.synthetic.products
+	python -m data.synthetic.manufacturers
 	python -m data.synthetic.boms
 	python -m data.synthetic.suppliers
 	python -m data.synthetic.customers
