@@ -5,7 +5,7 @@ Mirrors ontology spec § 8.1. Each class corresponds to one Neptune label.
 from __future__ import annotations
 from datetime import date
 from typing import Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 # --- BOM 계층 (4) ---
