@@ -1,0 +1,6 @@
+Auth fix deployed: 2026-05-05T15:36:00Z
+API image: 061525506239.dkr.ecr.ap-northeast-2.amazonaws.com/ontology-mfg-dev-api:latest (force-deployed)
+Verification:
+  /api/auth/login redirects to Cognito: HTTP/2 302 -> https://ontology-mfg-dev.auth.us-east-1.amazoncognito.com/login
+  /api/auth/callback?code=fake redirects to /api/auth/login?error=token_exchange (not 'missing bearer token')
+  ECS: 2/2 tasks running, PRIMARY deployment COMPLETED
