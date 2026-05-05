@@ -1,5 +1,5 @@
 # tests/api/services/test_compliance_engine.py
-from data.schemas import Component, Substance
+from data.schemas import Component  # noqa: F401
 from api.services.compliance_engine import check_component
 
 

@@ -9,7 +9,7 @@ def test_hybrid_returns_top_n(mock_boto, mock_os_cls):
     # Mock embedding
     mock_bedrock = MagicMock()
     mock_bedrock.invoke_model.return_value = {
-        "body": MagicMock(read=lambda: b'{"embeddings":[[0.1,0.2,0.3]]}')
+        "body": MagicMock(read=lambda: b'{"embedding":[0.1,0.2,0.3]}')
     }
     mock_boto.return_value = mock_bedrock
     # Mock OS

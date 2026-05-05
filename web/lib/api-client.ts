@@ -1,5 +1,13 @@
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "/api";
 
+/** Redirect to Cognito login when the API returns 401. */
+function handleUnauthorized(): never {
+  if (typeof window !== "undefined") {
+    window.location.href = "/api/auth/login";
+  }
+  throw new Error("authentication required");
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(`${BASE}${path}`, {
     method: "POST",
@@ -7,12 +15,14 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
     credentials: "include",
   });
+  if (r.status === 401) handleUnauthorized();
   if (!r.ok) throw new Error(`${path} → ${r.status}`);
   return r.json();
 }
 
 async function getJson<T>(path: string): Promise<T> {
   const r = await fetch(`${BASE}${path}`, { credentials: "include" });
+  if (r.status === 401) handleUnauthorized();
   if (!r.ok) throw new Error(`${path} → ${r.status}`);
   return r.json();
 }

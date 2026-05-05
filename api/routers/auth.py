@@ -4,12 +4,13 @@ Endpoints:
 - GET /api/auth/login    : redirect to Cognito Hosted UI (manual entrypoint)
 - GET /api/auth/callback : exchange ?code=... for tokens, set cookie, 302 to /
 - GET /api/auth/logout   : clear cookie, 302 to Cognito logout
+- GET /api/auth/whoami   : return auth status (exempt from middleware, reads cookie)
 """
 from __future__ import annotations
 import os
 import httpx
-from fastapi import APIRouter, Query
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -53,8 +54,8 @@ async def callback(code: str = Query(...)) -> RedirectResponse:
     id_token = payload.get("id_token")
     if not id_token:
         return RedirectResponse(url=f"{APP_BASE}/api/auth/login?error=no_id_token")
-    # Redirect to /buyer/search and set cookie. SameSite=Lax allows the cookie on top-level navigations.
-    response = RedirectResponse(url=f"{APP_BASE}/buyer/search")
+    # Redirect to / (dashboard) and set cookie. SameSite=Lax allows the cookie on top-level navigations.
+    response = RedirectResponse(url=f"{APP_BASE}/")
     response.set_cookie(
         key=COOKIE_NAME,
         value=id_token,
@@ -77,3 +78,42 @@ async def logout() -> RedirectResponse:
     response = RedirectResponse(url=cognito_logout)
     response.delete_cookie(COOKIE_NAME, path="/")
     return response
+
+
+@router.get("/whoami")
+async def whoami(request: Request) -> JSONResponse:
+    """Return auth status by inspecting the mfg_id_token cookie.
+
+    This endpoint is exempt from the auth middleware (path startswith /api/auth).
+    Returns { authenticated: true, email, sub } or { authenticated: false }.
+    """
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return JSONResponse({"authenticated": False})
+    try:
+        import requests as _requests
+        from jose import jwt
+        from api.config import settings
+
+        # Light-weight JWKS fetch (no caching needed — response is small and fast)
+        jwks_url = (
+            f"https://cognito-idp.{settings.cognito_region}.amazonaws.com"
+            f"/{settings.cognito_user_pool_id}/.well-known/jwks.json"
+        )
+        keys = _requests.get(jwks_url, timeout=5).json().get("keys", [])
+        header = jwt.get_unverified_header(token)
+        key = next((k for k in keys if k["kid"] == header.get("kid")), None)
+        if not key:
+            return JSONResponse({"authenticated": False, "reason": "unknown_kid"})
+        claims = jwt.decode(
+            token, key, algorithms=["RS256"],
+            options={"verify_aud": False, "verify_at_hash": False},
+        )
+        return JSONResponse({
+            "authenticated": True,
+            "email": claims.get("email"),
+            "sub": claims.get("sub"),
+            "username": claims.get("cognito:username"),
+        })
+    except Exception:
+        return JSONResponse({"authenticated": False})

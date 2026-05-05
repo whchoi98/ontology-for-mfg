@@ -14,5 +14,5 @@ def test_reroute_excludes_violating_lanes(mock_neptune):
         [{"id": "L3", "origin_region": "MX", "dest_region": "US", "transit_days": 5, "regulations": ["USMCA-Auto75"]}],
     ]
     out = simulate_reroute(event="IRA_2026")
-    assert any(l["id"] == "L3" for l in out["new_lanes"])
-    assert all(l["id"] != "L1" for l in out["new_lanes"])
+    assert any(lane["id"] == "L3" for lane in out["new_lanes"])
+    assert all(lane["id"] != "L1" for lane in out["new_lanes"])

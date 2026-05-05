@@ -5,7 +5,7 @@ endpoint logic without a live Cognito token.
 """
 from __future__ import annotations
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 
 @pytest.fixture(autouse=True)

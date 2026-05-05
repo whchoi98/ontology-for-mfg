@@ -3,6 +3,7 @@ JWKS public keys. Group claim (`cognito:groups`) is exposed via request.state.us
 so downstream router-level guards can authorize per persona.
 """
 from __future__ import annotations
+import logging
 import time
 from typing import Iterable
 import requests
@@ -11,6 +12,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from api.config import settings
+
+log = logging.getLogger("mfg.auth")
 
 
 class CognitoBearerAuth(BaseHTTPMiddleware):
@@ -31,11 +34,16 @@ class CognitoBearerAuth(BaseHTTPMiddleware):
         if not token:
             token = request.cookies.get("mfg_id_token")
         if not token:
+            log.warning("auth: no token for %s %s (cookies: %s)", request.method, request.url.path, list(request.cookies.keys()))
             return JSONResponse({"error": "authentication required"}, status_code=401)
         try:
             claims = self._verify(token)
         except JWTError as e:
+            log.warning("auth: jwt error for %s %s — %s", request.method, request.url.path, e)
             return JSONResponse({"error": f"invalid token: {e}"}, status_code=401)
+        except Exception as e:
+            log.error("auth: unexpected error for %s %s — %s: %s", request.method, request.url.path, type(e).__name__, e)
+            return JSONResponse({"error": "authentication error"}, status_code=401)
         request.state.user_email = claims.get("email")
         request.state.user_groups = claims.get("cognito:groups", []) or []
         return await call_next(request)
@@ -60,4 +68,7 @@ class CognitoBearerAuth(BaseHTTPMiddleware):
         key = next((k for k in keys if k["kid"] == kid), None)
         if not key:
             raise JWTError("kid not in JWKS")
-        return jwt.decode(token, key, algorithms=["RS256"], options={"verify_aud": False})
+        return jwt.decode(
+            token, key, algorithms=["RS256"],
+            options={"verify_aud": False, "verify_at_hash": False},
+        )
