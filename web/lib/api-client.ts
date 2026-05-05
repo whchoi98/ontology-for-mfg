@@ -38,6 +38,35 @@ export const api = {
   pdm: (plant_id?: string) => postJson("/pdm", { plant_id }),
 };
 
+// ─── New API methods for flat URL structure ──────────────────────────────────
+
+// listPersonas — returns hardcoded 5 mfg personas (no API call)
+export function listPersonas(_n = 5) {
+  return Promise.resolve({
+    items: [
+      { persona_id: "buyer",    label_ko: "Buyer 구매" },
+      { persona_id: "engineer", label_ko: "Engineer R&D" },
+      { persona_id: "quality",  label_ko: "Quality 품질" },
+      { persona_id: "scm",      label_ko: "SCM 공급망" },
+      { persona_id: "plant",    label_ko: "Plant 생산" },
+    ],
+  });
+}
+
+// listObjects — GET /api/objects/<label>?limit=N
+export function listObjects(label: string, limit = 100) {
+  return getJson<{ label: string; items: unknown[] }>(`/objects/${encodeURIComponent(label)}?limit=${limit}`);
+}
+
+// getOpsTrace — GET /api/ops/trace (fallback on error)
+export async function getOpsTrace(limit = 50) {
+  try {
+    return await getJson<unknown>(`/ops/trace?limit=${limit}`);
+  } catch {
+    return { items: [], error: "trace endpoint not available" };
+  }
+}
+
 export function chatStream(
   msg: string, session_id: string, persona = "engineer",
   onEvent: (e: { type: string; [k: string]: unknown }) => void,
