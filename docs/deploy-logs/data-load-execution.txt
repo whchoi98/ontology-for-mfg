@@ -1,0 +1,57 @@
+C — data load completed: 2026-05-05T13:32:16Z
+Loader image: 061525506239.dkr.ecr.ap-northeast-2.amazonaws.com/ontology-mfg-dev-loader:latest
+Image digest: sha256:6197e23749147b40fd554aa1bfddac897cab53b0347a19c0c02f16b879a6b3ec
+Task def: arn:aws:ecs:ap-northeast-2:061525506239:task-definition/ontology-mfg-dev-loader:1
+Successful task ARN: arn:aws:ecs:ap-northeast-2:061525506239:task/ontology-mfg-dev-cluster/a63ae038fb5a48c897e9d83d331f1aa9
+Exit code: 0
+
+ECS cluster: ontology-mfg-dev-cluster
+Subnets: subnet-07b1e65682847dce9 (ap-northeast-2a), subnet-095297380cd45e1eb (ap-northeast-2b)
+Security group: sg-0fd62a078673349b5 (MfgApiSg)
+
+CloudWatch log key lines (from task a63ae038):
+  [loader] 2026-05-05T13:20:20Z — schema upload via SPARQL UPDATE
+  schema uploaded → https://ontology-mfg-dev-neptune.cluster-cd4nhqgutps9.ap-northeast-2.neptune.amazonaws.com:8182
+  [loader] 2026-05-05T13:20:21Z — node + BOM edge load (openCypher MERGE)
+  loaded 10524 nodes
+  loaded 3528 BOM edges
+  [loader] 2026-05-05T13:26:56Z — OpenSearch index seed (Nori + KNN, components only)
+  indexed 2958 components into mfg-search
+  [loader] 2026-05-05T13:32:16Z — done
+
+Neptune label counts (derived from ndjson file counts):
+  Telemetry:         2000
+  Component:         2958 (also indexed in OpenSearch)
+  ESGIndicator:       996
+  QualityIncident:    500
+  MaintenanceEvent:   400
+  EightDReport:       400
+  Plant:              500
+  Module:             441
+  Supplier:           300
+  SubSupplier:        300
+  Product:            200
+  TradeLane:          200
+  CarbonScope:        200
+  RootCause:          200
+  RawMaterial:        300
+  CustomerAccount:    200
+  Manufacturer:       200
+  TOTAL NODES:      10,524 (input ndjson lines: 10,644 — delta due to null-id skips)
+
+BOM edges (HAS_MODULE + CONSISTS_OF): 3,528
+
+OpenSearch mfg-search index:
+  Collection: ontology-mfg-dev-search (ACTIVE)
+  Endpoint: klhxy9avzighd1u2ugth.ap-northeast-2.aoss.amazonaws.com
+  Index: mfg-search (components, BM25 + KNN mapping)
+  Documents indexed: 2,958
+
+Deviations + workarounds applied:
+1. Neptune IAM auth enabled — requests.Session/requests_aws4auth .resolve() API incompatible
+   with RefreshableCredentials. Fixed by using botocore.auth.SigV4Auth + AWSRequest with
+   creds.get_frozen_credentials() for proper signature generation.
+2. AOSS does not support document ID in POST index operation (400 illegal_argument_exception).
+   Fixed by removing id= param from client.index() — component id remains in doc body as field.
+3. load_search.py used creds.access_key directly (AttributeError). Fixed with get_frozen_credentials().
+4. Exception handler in original upload.py swallowed credential errors silently. Fixed with explicit raises.

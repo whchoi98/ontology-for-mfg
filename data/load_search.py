@@ -78,7 +78,11 @@ def index_components(*, host: str, region: str, index_name: str = "mfg-search") 
     from requests_aws4auth import AWS4Auth
     import boto3
     creds = boto3.Session().get_credentials()
-    auth = AWS4Auth(creds.access_key, creds.secret_key, region, "aoss", session_token=creds.token)
+    if creds is None:
+        raise RuntimeError("No AWS credentials available for OpenSearch auth")
+    # Use get_frozen_credentials() to properly refresh and get token
+    frozen = creds.get_frozen_credentials()
+    auth = AWS4Auth(frozen.access_key, frozen.secret_key, region, "aoss", session_token=frozen.token)
     client = OpenSearch(
         hosts=[{"host": host, "port": 443}],
         http_auth=auth,
@@ -86,12 +90,19 @@ def index_components(*, host: str, region: str, index_name: str = "mfg-search") 
         verify_certs=True,
         connection_class=RequestsHttpConnection,
     )
-    if not client.indices.exists(index_name):
-        client.indices.create(index_name, body=build_index_mapping())
+    # AOSS does not support specifying doc ID via index(); use create() or index without id
+    # to let AOSS auto-assign. We embed the component id as a field inside the doc body.
+    try:
+        if not client.indices.exists(index_name):
+            client.indices.create(index_name, body=build_index_mapping())
+    except Exception as exc:
+        # Index may already exist or AOSS doesn't support indices.exists — proceed
+        print(f"[warn] index check/create: {exc}")
     n = 0
     for comp in _iter_ndjson(OUTPUT_DIR / "components.ndjson"):
         doc = document_for_component(comp)
-        client.index(index=index_name, id=doc["id"], body=doc)
+        # AOSS: use index without explicit id (auto-assign) so POST /index/_doc is used
+        client.index(index=index_name, body=doc)
         n += 1
     return n
 

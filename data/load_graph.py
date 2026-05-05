@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 from typing import Iterable
+import requests
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 
@@ -54,10 +55,50 @@ def build_create_edge_cypher(*, src_label: str, src_id: str, rel: str,
             f"MERGE (a)-[r:{rel}]->(b){set_part}")
 
 
-def _post_cypher(endpoint: str, query: str, params: dict) -> dict:
+def _get_neptune_creds():
+    """Return (frozen_credentials, region) for Neptune SigV4 signing."""
+    import boto3
+    region = os.environ.get("AWS_REGION", "ap-northeast-2")
+    creds = boto3.Session().get_credentials()
+    if creds is None:
+        raise RuntimeError("No AWS credentials available for Neptune IAM auth")
+    return creds.get_frozen_credentials(), region
+
+
+def _signed_neptune_post(url: str, body: bytes, content_type: str) -> requests.Response:
+    """POST to Neptune with botocore SigV4 signing."""
     import requests
+    from botocore.auth import SigV4Auth
+    from botocore.awsrequest import AWSRequest
+    from botocore.credentials import Credentials
+
+    frozen, region = _get_neptune_creds()
+    aws_request = AWSRequest(
+        method="POST",
+        url=url,
+        data=body,
+        headers={"Content-Type": content_type},
+    )
+    SigV4Auth(
+        Credentials(frozen.access_key, frozen.secret_key, frozen.token),
+        "neptune-db",
+        region,
+    ).add_auth(aws_request)
+
+    prepared = aws_request.prepare()
+    return requests.post(
+        url,
+        data=body,
+        headers=dict(prepared.headers),
+        timeout=60,
+        verify=True,
+    )
+
+
+def _post_cypher(endpoint: str, query: str, params: dict) -> dict:
     url = f"{endpoint.rstrip('/')}/openCypher"
-    resp = requests.post(url, json={"query": query, "parameters": json.dumps(params)}, timeout=60)
+    body = json.dumps({"query": query, "parameters": json.dumps(params)}).encode("utf-8")
+    resp = _signed_neptune_post(url, body, "application/json")
     if resp.status_code >= 300:
         raise RuntimeError(f"openCypher failed [{resp.status_code}]: {resp.text}")
     return resp.json()

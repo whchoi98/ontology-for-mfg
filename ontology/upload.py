@@ -6,8 +6,46 @@ and KB indexing); openCypher operations don't enforce it.
 """
 from __future__ import annotations
 import argparse
+import os
 from pathlib import Path
 import requests
+
+
+def _signed_post(url: str, body: bytes, content_type: str, region: str) -> requests.Response:
+    """POST with AWS SigV4 signing using botocore directly."""
+    import boto3
+    from botocore.auth import SigV4Auth
+    from botocore.awsrequest import AWSRequest
+    from botocore.credentials import Credentials
+
+    session = boto3.Session()
+    creds = session.get_credentials()
+    if creds is None:
+        raise RuntimeError("No AWS credentials available for Neptune IAM auth")
+    frozen = creds.get_frozen_credentials()
+
+    aws_request = AWSRequest(
+        method="POST",
+        url=url,
+        data=body,
+        headers={"Content-Type": content_type},
+    )
+    signer = SigV4Auth(
+        Credentials(frozen.access_key, frozen.secret_key, frozen.token),
+        "neptune-db",
+        region,
+    )
+    signer.add_auth(aws_request)
+
+    prepared = aws_request.prepare()
+    resp = requests.post(
+        url,
+        data=body,
+        headers=dict(prepared.headers),
+        timeout=60,
+        verify=True,
+    )
+    return resp
 
 
 def upload_schema_to_neptune(*, endpoint: str, schema_path: str | Path) -> None:
@@ -17,10 +55,16 @@ def upload_schema_to_neptune(*, endpoint: str, schema_path: str | Path) -> None:
         endpoint: Neptune cluster writer endpoint, e.g. https://<cluster>.cluster-xxx.neptune.amazonaws.com:8182
         schema_path: filesystem path to schema.ttl
     """
+    import urllib.parse
+
     ttl_text = Path(schema_path).read_text(encoding="utf-8")
     sparql = f"INSERT DATA {{ {_ttl_to_sparql_triples(ttl_text)} }}"
     url = f"{endpoint.rstrip('/')}/sparql"
-    resp = requests.post(url, data={"update": sparql}, timeout=60)
+    region = os.environ.get("AWS_REGION", "ap-northeast-2")
+
+    # Encode as application/x-www-form-urlencoded (SPARQL HTTP protocol)
+    body = urllib.parse.urlencode({"update": sparql}).encode("utf-8")
+    resp = _signed_post(url, body, "application/x-www-form-urlencoded", region)
     if resp.status_code >= 300:
         raise RuntimeError(f"SPARQL UPDATE failed [{resp.status_code}]: {resp.text}")
 
