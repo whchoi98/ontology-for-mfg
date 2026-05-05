@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+.venv
+.pytest_cache
+data/output
+.git
+docs
+infra-cdk
+web
+node_modules
+tests
