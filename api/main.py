@@ -4,6 +4,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.config import settings
+from api.middleware_auth import CognitoBearerAuth
 
 logging.basicConfig(level=settings.log_level)
 log = logging.getLogger("mfg.api")
@@ -17,6 +18,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(CognitoBearerAuth, exempt_paths=["/healthz", "/docs", "/openapi.json"])
 
 
 @app.get("/healthz")
