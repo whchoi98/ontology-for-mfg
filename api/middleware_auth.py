@@ -16,17 +16,22 @@ from api.config import settings
 class CognitoBearerAuth(BaseHTTPMiddleware):
     def __init__(self, app, exempt_paths: Iterable[str] = ()):
         super().__init__(app)
-        self.exempt = set(exempt_paths) | {"/healthz", "/docs", "/openapi.json"}
+        self.exempt = set(exempt_paths) | {"/healthz", "/docs", "/openapi.json", "/api/auth"}
         self._jwks_cache: dict | None = None
         self._jwks_fetched_at: float = 0.0
 
     async def dispatch(self, request: Request, call_next):
         if any(request.url.path.startswith(p) for p in self.exempt):
             return await call_next(request)
+        # Accept either Authorization: Bearer <token> OR mfg_id_token cookie
         auth = request.headers.get("authorization", "")
-        if not auth.lower().startswith("bearer "):
-            return JSONResponse({"error": "missing bearer token"}, status_code=401)
-        token = auth[7:].strip()
+        token: str | None = None
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+        if not token:
+            token = request.cookies.get("mfg_id_token")
+        if not token:
+            return JSONResponse({"error": "authentication required"}, status_code=401)
         try:
             claims = self._verify(token)
         except JWTError as e:

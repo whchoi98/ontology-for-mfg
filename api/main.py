@@ -29,6 +29,7 @@ def healthz():
 # Routers registered in Tasks 16-25 — placeholder import here, fail-soft if not yet present
 def _try_register():
     for module_name in [
+        "auth",
         "search", "chat", "insights", "spec_match", "compliance",
         "substitute", "price", "scm_lane", "supplier_rfm", "eight_d",
         "esg_cbam", "pdm",

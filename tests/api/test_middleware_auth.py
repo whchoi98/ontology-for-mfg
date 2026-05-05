@@ -12,6 +12,9 @@ def test_auth_rejects_missing_bearer(_mock_get):
     client = TestClient(app)
     r = client.get("/api/private")
     assert r.status_code == 401
+    # Accept either old or new error message
+    err = r.json().get("error", "")
+    assert "token" in err.lower() or "auth" in err.lower()
 
 
 @patch("api.middleware_auth.requests.get")
