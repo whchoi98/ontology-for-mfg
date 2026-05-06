@@ -12,7 +12,7 @@ interface Props {
   height?: number | string;
 }
 
-export function CytoscapeView({ graph, wowNodeIds = [], onNodeTap, height = "100%" }: Props) {
+export function CytoscapeView({ graph, wowNodeIds = [], onNodeTap, height = 480 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<{ id: string; data: Record<string, unknown> } | null>(null);
 
@@ -108,7 +108,16 @@ export function CytoscapeView({ graph, wowNodeIds = [], onNodeTap, height = "100
           style: { "border-width": 3, "border-color": "#fb923c", "border-opacity": 1 },
         },
       ],
-      layout: { name: "concentric", animate: false, minNodeSpacing: 30 },
+      layout: { name: "concentric", animate: false, minNodeSpacing: 16 },
+    });
+
+    // Fit to viewport with padding so graphs always render at a sensible size,
+    // regardless of node count (5 nodes vs 50 nodes).
+    cy.ready(() => {
+      cy.fit(undefined, 40);
+      // Cap zoom so very small graphs don't fill the canvas with one giant node
+      if (cy.zoom() > 1.2) cy.zoom(1.2);
+      cy.center();
     });
 
     // Apply wow class to anchor nodes
