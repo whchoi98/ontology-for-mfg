@@ -165,6 +165,9 @@ export class EdgeStack extends Stack {
         }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+        // Compression buffers SSE chunks at the edge — must be disabled so /api/chat
+        // streams reach the browser one-by-one (each `delta`/`tool_call` event flushes immediately).
+        compress: false,
         originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
         edgeLambdas: [{

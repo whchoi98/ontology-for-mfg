@@ -81,10 +81,55 @@ def spec_match(req: SpecRequest = Body(...)) -> dict:
         candidates = _synthesize_candidates(req.requirements, req.top_n)
         synthetic = True
 
+    # Build a small subgraph from the candidates so the frontend can render it.
+    # Center node = "Spec" virtual node; connect to each candidate; each candidate
+    # connects to its shared standards.
+    nodes: list[dict] = [{"data": {
+        "id": "SPEC-VIRTUAL",
+        "label": "Spec",
+        "name_ko": (req.requirements or "스펙")[:24],
+        "name": (req.requirements or "스펙")[:24],
+    }}]
+    edges: list[dict] = []
+    seen_std_ids: set[str] = set()
+    for i, c in enumerate(candidates):
+        cid = c.get("id", f"CMP-{i}")
+        nodes.append({"data": {
+            "id": cid,
+            "label": "Component",
+            "name_ko": c.get("name") or cid,
+            "name": c.get("name") or cid,
+            "category": c.get("category"),
+            "rerank_score": c.get("rerank_score"),
+        }})
+        edges.append({"data": {
+            "id": f"e_spec_{i}",
+            "source": "SPEC-VIRTUAL",
+            "target": cid,
+            "type": "MATCHES",
+        }})
+        for std in (c.get("shared_standards") or []):
+            std_id = f"STD-{std}"
+            if std_id not in seen_std_ids:
+                nodes.append({"data": {
+                    "id": std_id,
+                    "label": "Standard",
+                    "name_ko": std,
+                    "name": std,
+                }})
+                seen_std_ids.add(std_id)
+            edges.append({"data": {
+                "id": f"e_{cid}_{std}",
+                "source": cid,
+                "target": std_id,
+                "type": "CONFORMS_TO",
+            }})
+
     return {
         "requirements": req.requirements,
         "target_product_id": req.target_product_id,
         "candidates": candidates,
+        "subgraph": {"nodes": nodes, "edges": edges},
         "_synthetic": synthetic,
         "_summary": (
             f"`{req.requirements[:60]}` 요구사항에 매칭되는 후보 {len(candidates)}개 "
