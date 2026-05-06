@@ -34,18 +34,44 @@ const PERSONA_LABEL: Record<Persona, string> = {
   plant:    "Plant 생산",
 };
 
+// Phase chips for search pipeline visualization (frontend simulation)
+interface PhaseChip { name: string; label: string; tone: string; }
+const PHASE_TONES: Record<string, string> = {
+  bm25:    "border-blue-500/40    bg-blue-500/10    text-blue-200",
+  knn:     "border-emerald-500/40 bg-emerald-500/10 text-emerald-200",
+  rrf:     "border-amber-500/40   bg-amber-500/10   text-amber-200",
+  rerank:  "border-rose-500/40    bg-rose-500/10    text-rose-200",
+  neptune: "border-violet-500/40  bg-violet-500/10  text-violet-200",
+};
+
+function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+
 export default function SearchPage() {
   const { active, setActive } = useActivePersona();
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<Record<string, unknown>[]>([]);
   const [graph, setGraph] = useState<CytoscapeGraph>({ nodes: [], edges: [] });
   const [loading, setLoading] = useState(false);
+  const [phases, setPhases] = useState<PhaseChip[]>([]);
 
   async function doSearch(query: string) {
     if (!query.trim()) return;
     setLoading(true);
+    setHits([]);
+    setPhases([]);
+
+    // Simulate pipeline phase chips while awaiting real API
+    setPhases([{ name: "bm25", label: "BM25 (Nori 한글)", tone: PHASE_TONES.bm25 }]);
+    await sleep(150);
+    setPhases((p) => [...p, { name: "knn", label: "Cohere embed-v3 KNN", tone: PHASE_TONES.knn }]);
+    await sleep(150);
+    setPhases((p) => [...p, { name: "rrf", label: "RRF fusion", tone: PHASE_TONES.rrf }]);
+    await sleep(150);
+    setPhases((p) => [...p, { name: "rerank", label: "Bedrock Reranker", tone: PHASE_TONES.rerank }]);
+
     const r = await api.search(query, active);
     setHits(r.hits as Record<string, unknown>[]);
+    setPhases((p) => [...p, { name: "neptune", label: "Neptune subgraph", tone: PHASE_TONES.neptune }]);
     setGraph(r.subgraph as CytoscapeGraph);
     setLoading(false);
   }
@@ -111,6 +137,29 @@ export default function SearchPage() {
               </button>
             </div>
           </form>
+
+          {/* Pipeline phase chips — visible while loading or just after */}
+          {(loading || phases.length > 0) && hits.length === 0 && (
+            <div className="mb-5 p-4 rounded-lg border border-ink-700 bg-ink-900">
+              <div className="text-xs uppercase tracking-wider text-ink-400 font-semibold mb-2 flex items-center gap-2">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-500 animate-pulse" />
+                검색 파이프라인 진행 중 — {phases.length}단계 완료
+              </div>
+              <ol className="flex flex-wrap gap-2">
+                {phases.map((p, i) => (
+                  <li key={i} className={`flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded border ${p.tone}`}>
+                    <span className="text-[9px] opacity-60">{i + 1}.</span>
+                    <span className="font-semibold">{p.label}</span>
+                  </li>
+                ))}
+                {loading && (
+                  <li className="text-[11px] font-mono px-2 py-1 rounded border border-ink-600/30 bg-ink-800/50 text-ink-400 animate-pulse">
+                    다음 단계…
+                  </li>
+                )}
+              </ol>
+            </div>
+          )}
 
           <ul className="space-y-2">
             {hits.map((h, i) => (

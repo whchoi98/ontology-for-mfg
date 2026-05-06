@@ -20,8 +20,21 @@ export default function BuyerRfmPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const r = (await api.rfm(tier)) as { rows?: RfmRow[] };
-    setRows(r.rows ?? []);
+    const r = (await api.rfm(tier)) as { rows?: RfmRow[]; ranked?: RfmRow[] };
+    const raw = r.ranked ?? r.rows ?? [];
+    const mapped = raw.map((row) => {
+      const anyRow = row as unknown as Record<string, unknown>;
+      return {
+        supplier_id:   String(anyRow.id ?? anyRow.supplier_id ?? ""),
+        supplier_name: String(anyRow.name ?? anyRow.supplier_name ?? ""),
+        rfm_score:     typeof anyRow.composite === "number" ? anyRow.composite :
+                       typeof anyRow.rfm_score === "number" ? anyRow.rfm_score : undefined,
+        recency:       typeof anyRow.recency   === "number" ? anyRow.recency   : undefined,
+        frequency:     typeof anyRow.frequency === "number" ? anyRow.frequency : undefined,
+        monetary:      typeof anyRow.monetary  === "number" ? anyRow.monetary  : undefined,
+      } as RfmRow;
+    });
+    setRows(mapped);
     setLoading(false);
   }
 

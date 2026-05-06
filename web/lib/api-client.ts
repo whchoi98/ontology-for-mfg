@@ -89,6 +89,10 @@ export function chatStream(
     signal: ctrl.signal,
     credentials: "include",
   }).then(async (r) => {
+    if (!r.ok) {
+      onEvent({ type: "stop", reason: `error:${r.status}` });
+      return;
+    }
     const reader = r.body!.getReader();
     const decoder = new TextDecoder();
     let buf = "";
@@ -100,8 +104,16 @@ export function chatStream(
       buf = events.pop() ?? "";
       for (const ev of events) {
         const dataLine = ev.split("\n").find((l) => l.startsWith("data: "));
-        if (dataLine) onEvent(JSON.parse(dataLine.slice(6)));
+        if (dataLine) {
+          try { onEvent(JSON.parse(dataLine.slice(6))); } catch { /* skip malformed */ }
+        }
       }
+    }
+    // Ensure streaming ends if stream closes without explicit stop event
+    onEvent({ type: "stop", reason: "stream_end" });
+  }).catch((err) => {
+    if (err?.name !== "AbortError") {
+      onEvent({ type: "stop", reason: `fetch_error:${String(err)}` });
     }
   });
   return () => ctrl.abort();

@@ -6,6 +6,7 @@ import { useActivePersona } from "@/lib/persona-context";
 import type { Persona } from "@/lib/types";
 
 interface KpiRow { label: string; value: string; delta?: string; }
+interface ChartItem { label: string; value: number; }
 
 type Sample = { label: string; persona: Persona };
 
@@ -33,22 +34,61 @@ const PERSONA_LABEL: Record<Persona, string> = {
   plant:    "Plant 생산",
 };
 
+// Pipeline phase chips for insights
+interface PhaseChip { name: string; label: string; tone: string; }
+const PHASE_META: Record<string, { label: string; tone: string }> = {
+  neptune: { label: "Neptune 집계", tone: "border-emerald-500/40 bg-emerald-500/10 text-emerald-200" },
+  bedrock: { label: "Sonnet 4.6 분석", tone: "border-orange-500/40 bg-orange-500/10 text-orange-200" },
+};
+
+function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+
 export default function InsightsPage() {
   const { active, setActive } = useActivePersona();
   const [question, setQuestion] = useState("");
   const [summary, setSummary] = useState("");
   const [kpis, setKpis] = useState<KpiRow[]>([]);
+  const [chart, setChart] = useState<ChartItem[]>([]);
+  const [chartTitle, setChartTitle] = useState("");
+  const [phases, setPhases] = useState<PhaseChip[]>([]);
   const [loading, setLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
 
   async function submit(q?: string) {
     const text = q ?? question;
     if (!text.trim()) return;
     setLoading(true);
-    const r = (await api.insights(text, active)) as { summary?: string; rows?: KpiRow[] };
+    setSummary("");
+    setKpis([]);
+    setChart([]);
+    setChartTitle("");
+    setPhases([]);
+    setStreamingText("");
+
+    // Simulate pipeline phases
+    const neptuneMeta = PHASE_META.neptune;
+    setPhases([{ name: "neptune", ...neptuneMeta }]);
+    await sleep(300);
+    const bedrockMeta = PHASE_META.bedrock;
+    setPhases((p) => [...p, { name: "bedrock", ...bedrockMeta }]);
+
+    const r = (await api.insights(text, active)) as {
+      summary?: string;
+      rows?: KpiRow[];
+      chart_spec?: { title?: string; data?: ChartItem[] };
+    };
+
     setSummary(r.summary ?? "");
     setKpis(r.rows ?? []);
+    if (r.chart_spec?.data?.length) {
+      setChart(r.chart_spec.data);
+      setChartTitle(r.chart_spec.title ?? "");
+    }
     setLoading(false);
   }
+
+  const maxValue = chart.length > 0 ? Math.max(...chart.map((d) => d.value), 1) : 1;
+  const isDone = !loading && (summary || kpis.length > 0 || chart.length > 0);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -60,7 +100,7 @@ export default function InsightsPage() {
         <h1 className="text-2xl font-bold text-ink-50 mb-1">인사이트</h1>
         <p className="text-sm text-ink-400 mb-4">Neptune 집계 + Sonnet 4.6 스트리밍 + Code Interpreter 차트</p>
 
-        {!summary && kpis.length === 0 && (
+        {!summary && kpis.length === 0 && !loading && (
           <div className="mb-5">
             <div className="text-xs uppercase tracking-wider text-ink-400 font-semibold mb-2">
               추천 질문 — 클릭하면 바로 전송됩니다
@@ -102,7 +142,57 @@ export default function InsightsPage() {
           </button>
         </div>
 
+        {/* Pipeline phase strip */}
+        {(loading || phases.length > 0) && !isDone && (
+          <div className="mb-5 p-4 rounded-lg border border-ink-700 bg-ink-900 space-y-3">
+            <div className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold flex items-center gap-2">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-500 animate-pulse" />
+              인사이트 파이프라인 진행 중 — {phases.length}단계 완료
+            </div>
+            <ol className="flex flex-wrap gap-2">
+              {phases.map((p, i) => (
+                <li key={i} className={`flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded border ${p.tone}`}>
+                  <span className="text-[9px] opacity-60">{i + 1}.</span>
+                  <span className="font-semibold">{p.label}</span>
+                </li>
+              ))}
+              {loading && (
+                <li className="text-[11px] font-mono px-2 py-1 rounded border border-ink-600/30 bg-ink-800/50 text-ink-400 animate-pulse">
+                  다음 단계…
+                </li>
+              )}
+            </ol>
+            {streamingText && (
+              <div className="border-t border-ink-700 pt-3 text-sm text-ink-300 leading-relaxed whitespace-pre-wrap">
+                {streamingText}
+              </div>
+            )}
+          </div>
+        )}
+
         {kpis.length > 0 && <div className="mb-6"><KpiStrip kpis={kpis} /></div>}
+
+        {/* Bar chart from chart_spec.data */}
+        {chart.length > 0 && (
+          <div className="mb-6 bg-ink-800 border border-ink-700 rounded-lg p-5">
+            {chartTitle && <h2 className="text-sm font-semibold text-ink-100 mb-4">{chartTitle}</h2>}
+            <ul className="space-y-2">
+              {chart.map((d, i) => (
+                <li key={i} className="flex items-center gap-3">
+                  <div className="w-36 text-xs text-ink-300 truncate shrink-0">{d.label}</div>
+                  <div className="flex-1 h-5 bg-ink-900 rounded">
+                    <div
+                      className="h-5 bg-gradient-to-r from-accent-500 to-rose-500 rounded transition-all"
+                      style={{ width: `${(d.value / maxValue) * 100}%` }}
+                    />
+                  </div>
+                  <div className="w-12 text-xs text-right font-mono text-ink-200 tabular-nums">{d.value}</div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {summary && (
           <div className="bg-ink-800 border border-ink-700 rounded-lg p-5 text-sm text-ink-200 leading-relaxed whitespace-pre-wrap">
             {summary}

@@ -18,18 +18,33 @@ export default function RfmPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const r = (await api.rfm(tier)) as { rows?: RfmRow[] };
-    setRows(r.rows ?? []);
+    // API returns { tier, ranked: [...] } — ranked rows use composite/recency/frequency/monetary
+    const r = (await api.rfm(tier)) as { rows?: RfmRow[]; ranked?: RfmRow[] };
+    const raw = r.ranked ?? r.rows ?? [];
+    // Map API field names: composite → rfm_score (if needed)
+    const mapped = raw.map((row) => {
+      const anyRow = row as unknown as Record<string, unknown>;
+      return {
+        supplier_id:   String(anyRow.id ?? anyRow.supplier_id ?? ""),
+        supplier_name: String(anyRow.name ?? anyRow.supplier_name ?? ""),
+        rfm_score:     typeof anyRow.composite  === "number" ? anyRow.composite  :
+                       typeof anyRow.rfm_score  === "number" ? anyRow.rfm_score  : undefined,
+        recency:       typeof anyRow.recency    === "number" ? anyRow.recency    : undefined,
+        frequency:     typeof anyRow.frequency  === "number" ? anyRow.frequency  : undefined,
+        monetary:      typeof anyRow.monetary   === "number" ? anyRow.monetary   : undefined,
+      } as RfmRow;
+    });
+    setRows(mapped);
     setLoading(false);
   }
 
   const topRow = rows[0];
   const kpis = topRow ? [
     { label: "Top 공급업체", value: topRow.supplier_name ?? topRow.supplier_id },
-    { label: "RFM 점수", value: topRow.rfm_score?.toFixed(2) ?? "-" },
-    { label: "Recency", value: topRow.recency?.toString() ?? "-" },
-    { label: "Frequency", value: topRow.frequency?.toString() ?? "-" },
-    { label: "Monetary", value: topRow.monetary?.toLocaleString() ?? "-" },
+    { label: "종합 점수", value: topRow.rfm_score != null ? topRow.rfm_score.toFixed(3) : "-" },
+    { label: "신뢰도(OTD)", value: topRow.recency != null ? topRow.recency.toFixed(3) : "-" },
+    { label: "일관성", value: topRow.frequency != null ? topRow.frequency.toFixed(3) : "-" },
+    { label: "응답성", value: topRow.monetary != null ? topRow.monetary.toFixed(3) : "-" },
   ] : [];
 
   return (

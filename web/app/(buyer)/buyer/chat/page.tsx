@@ -35,8 +35,8 @@ export default function BuyerChatPage() {
       sessionId.current,
       "buyer",
       (ev) => {
-        if (ev.type === "token") {
-          buffer += String(ev.content ?? "");
+        if (ev.type === "delta" || ev.type === "token") {
+          buffer += String(ev.text ?? ev.content ?? "");
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             if (last?.role === "assistant") {
@@ -46,7 +46,7 @@ export default function BuyerChatPage() {
           });
         } else if (ev.type === "tool_call" || ev.type === "tool_result") {
           setToolLog((prev) => [...prev, ev as ToolEvent]);
-        } else if (ev.type === "done") {
+        } else if (ev.type === "stop" || ev.type === "done") {
           setStreaming(false);
           buffer = "";
         }

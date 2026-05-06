@@ -62,8 +62,10 @@ export default function ChatPage() {
       sessionId.current,
       active,
       (ev) => {
-        if (ev.type === "token") {
-          buffer += String(ev.content ?? "");
+        // API emits: delta (text chunk), stop (end), tool_call, tool_result, phase
+        // Legacy frontend expected: token / done — map both for compatibility
+        if (ev.type === "delta" || ev.type === "token") {
+          buffer += String(ev.text ?? ev.content ?? "");
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             if (last?.role === "assistant") {
@@ -72,8 +74,12 @@ export default function ChatPage() {
             return [...prev, { role: "assistant", text: buffer }];
           });
         } else if (ev.type === "tool_call" || ev.type === "tool_result" || ev.type === "guardrail") {
-          setToolLog((prev) => [...prev, ev as ToolEvent]);
-        } else if (ev.type === "done") {
+          setToolLog((prev) => [...prev, {
+            type: ev.type,
+            tool: String(ev.name ?? ev.tool ?? ""),
+            content: String(ev.result ?? ev.content ?? ""),
+          } as ToolEvent]);
+        } else if (ev.type === "stop" || ev.type === "done") {
           setStreaming(false);
           buffer = "";
         }
