@@ -46,19 +46,99 @@ def _tool_memory(_name: str, args: dict) -> dict:
     return {"ok": True}
 
 
+# Tool definitions with explicit inputSchema (so Bedrock fills required fields).
+# Tuple shape: (name, description, fn, input_schema)
 _TOOLS = [
-    ("search_semantic", "Hybrid Korean+vector search over BOM/components", _tool_search),
-    ("neptune_query",   "Run an openCypher query on the mfg graph", _tool_neptune),
-    ("kb_retrieve",     "Retrieve from Bedrock Knowledge Base", _tool_kb),
-    ("compliance_check", "Check a component against REACH/RoHS/AEC-Q rules", _tool_compliance),
-    ("memory_save",     "Persist a user fact for future conversations", _tool_memory),
+    (
+        "search_semantic",
+        "Hybrid Korean+vector search over BOM/components/standards. Returns top-N hits.",
+        _tool_search,
+        {
+            "type": "object",
+            "properties": {
+                "q": {"type": "string", "description": "Korean or English natural-language query, ≥3 chars (e.g. 'AEC-Q100 BGA package')"},
+                "top_n": {"type": "integer", "description": "max hits to return (default 5)"},
+            },
+            "required": ["q"],
+        },
+    ),
+    (
+        "neptune_query",
+        "Run an openCypher query on the mfg knowledge graph (22 classes — Component/Supplier/Plant/TradeLane/Standard/etc.).",
+        _tool_neptune,
+        {
+            "type": "object",
+            "properties": {
+                "cypher": {"type": "string", "description": "Full openCypher query, e.g. 'MATCH (c:Component {id: $id}) RETURN c LIMIT 1'. Must NOT be empty."},
+                "params": {"type": "object", "description": "Optional Cypher parameters keyed by $name", "additionalProperties": True},
+            },
+            "required": ["cypher"],
+        },
+    ),
+    (
+        "kb_retrieve",
+        "Retrieve passages from Bedrock Knowledge Base — datasheets, 8D reports, certifications, regulatory guidance.",
+        _tool_kb,
+        {
+            "type": "object",
+            "properties": {
+                "q": {"type": "string", "description": "Natural-language query for the KB"},
+                "top_k": {"type": "integer", "description": "number of passages to retrieve (1-10, default 5)"},
+            },
+            "required": ["q"],
+        },
+    ),
+    (
+        "compliance_check",
+        "Check a component against REACH-SVHC, RoHS, AEC-Q rules. Returns {compliant, violations[]}.",
+        _tool_compliance,
+        {
+            "type": "object",
+            "properties": {
+                "component_id": {"type": "string", "description": "Component id (e.g. AMZN-CMP-IC-00001)"},
+                "substances": {"type": "array", "items": {"type": "string"}, "description": "Optional CAS-IDs to check explicitly"},
+            },
+            "required": ["component_id"],
+        },
+    ),
+    (
+        "memory_save",
+        "Persist a user fact for future conversations (e.g. 'prefers Tier-1 supplier X', 'budget cap 5M USD').",
+        _tool_memory,
+        {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "key":        {"type": "string", "description": "Fact key (e.g. 'preference', 'constraint')"},
+                "value":      {"type": "string", "description": "Fact value"},
+            },
+            "required": ["key", "value"],
+        },
+    ),
 ]
+
+
+_SYSTEM_PROMPT_TEMPLATE = (
+    "You are an AMZN Tech {persona} copilot for a hi-tech manufacturing knowledge graph. "
+    "Domain: 가전 H&A / TV HE / 자동차 전장 VS / 부품 Innotek+Magna ePT JV. "
+    "Always respond in Korean (technical English terms OK). "
+    "When you need data:\n"
+    "  • Use `search_semantic(q)` for fuzzy concept search (e.g. '차량용 -40°C BGA').\n"
+    "  • Use `neptune_query(cypher, params)` for precise BOM/Supplier/Plant/Lane lookups — ALWAYS supply a complete openCypher string.\n"
+    "  • Use `kb_retrieve(q)` for datasheet / 8D / regulation context.\n"
+    "  • Use `compliance_check(component_id)` for REACH/RoHS/AEC-Q verification.\n"
+    "Never call a tool with empty arguments — every tool requires the listed `required` fields. "
+    "If a tool result is empty or errors out, acknowledge briefly and proceed without retrying the same call. "
+    "Format output as Markdown when listing items (tables, bullets, **bold** for IDs)."
+)
 
 
 @router.post("/chat")
 def chat(req: ChatRequest = Body(...)):
-    runner = AgentRunner(tools=_TOOLS,
-                         system=f"You are an AMZN Tech {req.persona} copilot. Korean + technical English.")
+    runner = AgentRunner(
+        tools=_TOOLS,
+        system=_SYSTEM_PROMPT_TEMPLATE.format(persona=req.persona),
+    )
 
     def gen():
         for event in runner.run_stream(req.msg, session_id=req.session_id):

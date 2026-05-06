@@ -17,7 +17,11 @@ log = logging.getLogger("mfg.agent")
 
 
 class AgentRunner:
-    def __init__(self, tools: list[tuple[str, str, Callable]] | None = None,
+    """Tool tuple shapes accepted:
+    - 3-tuple: (name, description, fn) — uses permissive input schema (legacy)
+    - 4-tuple: (name, description, fn, input_schema_dict) — passes the schema to Bedrock
+    """
+    def __init__(self, tools: list[tuple] | None = None,
                  system: str = "You are a Korean Hi-Tech MFG copilot.",
                  max_rounds: int = 8):
         self.tools = tools or []
@@ -25,13 +29,20 @@ class AgentRunner:
         self.max_rounds = max_rounds
 
     def _tool_specs(self) -> list[dict]:
-        return [{
-            "toolSpec": {
-                "name": name,
-                "description": desc,
-                "inputSchema": {"json": {"type": "object", "properties": {}, "additionalProperties": True}},
-            }
-        } for name, desc, _fn in self.tools]
+        out: list[dict] = []
+        for tool in self.tools:
+            if len(tool) >= 4 and isinstance(tool[3], dict):
+                schema = tool[3]
+            else:
+                schema = {"type": "object", "properties": {}, "additionalProperties": True}
+            out.append({
+                "toolSpec": {
+                    "name": tool[0],
+                    "description": tool[1],
+                    "inputSchema": {"json": schema},
+                }
+            })
+        return out
 
     def run_stream(self, user_msg: str, session_id: str) -> Generator[dict, None, None]:
         # Phase 1 — input guardrail (visibility event for UI; actual Guardrails call
@@ -97,7 +108,8 @@ class AgentRunner:
                     args = tu.get("input", {})
                     tool_id = tu["toolUseId"]
                     yield {"type": "tool_call", "name": name, "args": args}
-                    fn = next((f for n, _d, f in self.tools if n == name), None)
+                    # Lookup fn — tool tuples may be 3 or 4 elements
+                    fn = next((t[2] for t in self.tools if t[0] == name), None)
                     if not fn:
                         result: dict = {"error": f"unknown tool {name}"}
                     else:
