@@ -75,26 +75,32 @@ export default function RfmPage() {
         </form>
         {kpis.length > 0 && <div className="mb-6"><KpiStrip kpis={kpis} /></div>}
         {rows.length > 0 && (
-          <div className="overflow-x-auto rounded-lg border border-ink-700">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-lg border border-ink-700 bg-ink-900">
+            <table className="w-full text-sm bg-ink-900">
               <thead className="bg-ink-800">
                 <tr>
-                  {["순위","공급업체","RFM","R","F","M"].map((h) => (
-                    <th key={h} className="border-b border-ink-700 px-4 py-3 text-left text-xs text-ink-300 font-semibold">{h}</th>
+                  {["순위","공급업체","RFM","R (신뢰도)","F (일관성)","M (응답성)"].map((h) => (
+                    <th key={h} className="border-b border-ink-700 px-4 py-3 text-left text-xs text-ink-300 font-semibold uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i} className="border-b border-ink-700/40 hover:bg-ink-800/50">
-                    <td className="px-4 py-3 text-center text-ink-400 font-mono">{i + 1}</td>
-                    <td className="px-4 py-3 text-ink-100">{r.supplier_name ?? r.supplier_id}</td>
-                    <td className="px-4 py-3 text-ink-200 font-mono font-medium">{r.rfm_score?.toFixed(2) ?? "-"}</td>
-                    <td className="px-4 py-3 text-ink-300 font-mono">{r.recency ?? "-"}</td>
-                    <td className="px-4 py-3 text-ink-300 font-mono">{r.frequency ?? "-"}</td>
-                    <td className="px-4 py-3 text-ink-300 font-mono">{r.monetary?.toLocaleString() ?? "-"}</td>
-                  </tr>
-                ))}
+              <tbody className="bg-ink-900">
+                {rows.map((r, i) => {
+                  const score = r.rfm_score ?? 0;
+                  const scoreColor = score >= 0.85 ? "text-emerald-300"
+                    : score >= 0.70 ? "text-amber-300"
+                    : "text-rose-300";
+                  return (
+                    <tr key={i} className="border-b border-ink-800 hover:bg-ink-800/60 transition">
+                      <td className="px-4 py-3 text-center text-ink-400 font-mono">{i + 1}</td>
+                      <td className="px-4 py-3 text-ink-100 font-medium">{r.supplier_name ?? r.supplier_id}</td>
+                      <td className={`px-4 py-3 font-mono font-bold ${scoreColor}`}>{r.rfm_score?.toFixed(3) ?? "-"}</td>
+                      <td className="px-4 py-3 text-ink-300 font-mono">{r.recency?.toFixed(3) ?? "-"}</td>
+                      <td className="px-4 py-3 text-ink-300 font-mono">{r.frequency?.toFixed(3) ?? "-"}</td>
+                      <td className="px-4 py-3 text-ink-300 font-mono">{r.monetary?.toFixed(3) ?? "-"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
