@@ -42,9 +42,29 @@ def _synthesize_lanes() -> list[dict]:
             lid += 1
             out.append({
                 "id": f"AMZN-LANE-{lid:04d}",
-                "origin": o, "dest": d, "mode": mode,
-                "days": max(2, transit), "regulations": regs,
+                # Web SCMMap expects origin_region/dest_region/transit_days (matches TradeLane schema)
+                "origin_region": o, "dest_region": d, "mode": mode,
+                "transit_days": max(2, transit), "regulations": regs,
             })
+    return out
+
+
+def _normalise_lane(ln: dict) -> dict:
+    """Coerce Neptune row into the TradeLane shape Web expects."""
+    out = dict(ln)
+    # Field name aliases (Cypher AS may have used either)
+    if "origin_region" not in out and "origin" in out:
+        out["origin_region"] = out["origin"]
+    if "dest_region" not in out and "dest" in out:
+        out["dest_region"] = out["dest"]
+    if "transit_days" not in out and "days" in out:
+        out["transit_days"] = out["days"]
+    # regulations: never None or scalar
+    regs = out.get("regulations")
+    if regs is None:
+        out["regulations"] = []
+    elif isinstance(regs, str):
+        out["regulations"] = [regs] if regs else []
     return out
 
 
@@ -53,8 +73,8 @@ def list_lanes() -> dict:
     lanes: list[dict] = []
     try:
         rows = get_neptune().run_cypher(
-            "MATCH (l:TradeLane) RETURN l.id AS id, l.origin_region AS origin, "
-            "l.dest_region AS dest, l.mode AS mode, l.transit_days AS days, "
+            "MATCH (l:TradeLane) RETURN l.id AS id, l.origin_region AS origin_region, "
+            "l.dest_region AS dest_region, l.mode AS mode, l.transit_days AS transit_days, "
             "l.regulations AS regulations LIMIT 200",
             {},
         )
@@ -68,17 +88,11 @@ def list_lanes() -> dict:
         lanes = _synthesize_lanes()
         synthetic = True
 
-    # Normalise — Neptune may return regulations as None or a string
-    for ln in lanes:
-        regs = ln.get("regulations")
-        if regs is None:
-            ln["regulations"] = []
-        elif isinstance(regs, str):
-            ln["regulations"] = [regs] if regs else []
+    lanes = [_normalise_lane(ln) for ln in lanes]
 
     # Lightweight per-region counts so the frontend can display KPIs alongside the map
     from collections import Counter
-    by_dest = Counter(ln["dest"] for ln in lanes)
+    by_dest = Counter(ln["dest_region"] for ln in lanes)
     by_mode = Counter(ln["mode"] for ln in lanes)
     flagged = sum(1 for ln in lanes if ln["regulations"])
 
@@ -110,16 +124,17 @@ def reroute(req: LaneRerouteRequest = Body(...)) -> dict:
         evt_to_reg = {"IRA_2026": "IRA-30D", "USMCA_2025": "USMCA-Auto75", "CBAM_2026": "CBAM"}
         reg = evt_to_reg.get(req.event, "IRA-30D")
 
-        # 2 dropped + 2 new lanes
+        # 2 dropped + 2 new lanes (use the same field names as TradeLane schema)
         dropped = [
-            {"id": f"AMZN-LANE-DROP-{i:03d}", "origin": "CN", "dest": "US",
-              "mode": "SEA", "days": 26, "regulations": [reg]}
+            {"id": f"AMZN-LANE-DROP-{i:03d}",
+              "origin_region": "CN", "dest_region": "US",
+              "mode": "SEA", "transit_days": 26, "regulations": [reg]}
             for i in range(1, 3)
         ]
         new_lanes = [
             {"id": f"AMZN-LANE-NEW-{i:03d}",
-              "origin": "MX", "dest": "US",
-              "mode": "ROAD", "days": rng.randint(4, 10),
+              "origin_region": "MX", "dest_region": "US",
+              "mode": "ROAD", "transit_days": rng.randint(4, 10),
               "regulations": ["USMCA-Auto75"]}
             for i in range(1, 3)
         ]
