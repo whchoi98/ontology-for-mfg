@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api-client";
 import { KpiStrip } from "@/components/KpiStrip";
+import { MarkdownView } from "@/components/MarkdownView";
 import { useActivePersona } from "@/lib/persona-context";
 import type { Persona } from "@/lib/types";
 
@@ -194,8 +195,8 @@ export default function InsightsPage() {
         )}
 
         {summary && (
-          <div className="bg-ink-800 border border-ink-700 rounded-lg p-5 text-sm text-ink-200 leading-relaxed whitespace-pre-wrap">
-            {summary}
+          <div className="bg-ink-800 border border-ink-700 rounded-lg p-5">
+            <MarkdownView text={summary} />
           </div>
         )}
       </div>

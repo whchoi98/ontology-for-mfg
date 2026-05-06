@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useActivePersona } from "@/lib/persona-context";
+import { MarkdownView } from "@/components/MarkdownView";
 import type { Persona } from "@/lib/types";
 
 interface EightDSection { section: string; title: string; content: string; }
@@ -137,8 +138,8 @@ export default function EightDPage() {
                   : <ChevronDown className="w-4 h-4 text-ink-400" />}
               </button>
               {open.has(s.section) && (
-                <div className="px-4 pb-4 text-sm text-ink-300 border-t border-ink-700 pt-3 leading-relaxed">
-                  {s.content}
+                <div className="px-4 pb-4 border-t border-ink-700 pt-3">
+                  <MarkdownView text={s.content} className="text-ink-300" />
                 </div>
               )}
             </div>

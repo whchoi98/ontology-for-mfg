@@ -4,6 +4,7 @@ import { Send, Bot, User } from "lucide-react";
 import { chatStream } from "@/lib/api-client";
 import { useActivePersona } from "@/lib/persona-context";
 import type { Persona } from "@/lib/types";
+import { MarkdownView } from "@/components/MarkdownView";
 
 interface Message { role: "user" | "assistant"; text: string; }
 interface ToolEvent { type: string; tool?: string; content?: string; }
@@ -141,12 +142,12 @@ export default function ChatPage() {
                   </div>
                 )}
                 <span className={[
-                  "inline-block px-3 py-2 rounded-lg text-sm max-w-[80%] whitespace-pre-wrap",
+                  "inline-block px-3 py-2 rounded-lg text-sm max-w-[80%]",
                   m.role === "user"
-                    ? "bg-accent-600 text-ink-50"
+                    ? "bg-accent-600 text-ink-50 whitespace-pre-wrap"
                     : "bg-ink-800 border border-ink-700 text-ink-200",
                 ].join(" ")}>
-                  {m.text}
+                  {m.role === "assistant" ? <MarkdownView text={m.text} /> : m.text}
                 </span>
                 {m.role === "user" && (
                   <div className="w-7 h-7 rounded-full bg-ink-700 flex items-center justify-center shrink-0 mt-1">
