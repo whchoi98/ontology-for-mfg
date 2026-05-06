@@ -11,3 +11,6 @@ data/output/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+web/.next/
+web/node_modules/

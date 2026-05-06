@@ -1,1 +1,0 @@
-self.__NEXT_FONT_MANIFEST='{"pages":{},"app":{"/home/ec2-user/my-project/ontology-for-mfg/web/app/layout":["static/media/d2c1ffb734f61872-s.p.woff2"]},"appUsingSizeAdjust":true,"pagesUsingSizeAdjust":false}';
