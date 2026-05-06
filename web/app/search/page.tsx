@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Search as SearchIcon } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { CytoscapeView } from "@/components/CytoscapeView";
+import { ScenarioHeader } from "@/components/ScenarioHeader";
 import { useActivePersona } from "@/lib/persona-context";
 import type { CytoscapeGraph } from "@/lib/types";
 import type { Persona } from "@/lib/types";
@@ -78,11 +79,7 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="h-14 border-b border-ink-700 bg-ink-900 flex items-center px-6 pt-0">
-        <div className="text-xs text-ink-400">시나리오 A · 의미 검색</div>
-        <span className="ml-3 text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 font-mono">WOW</span>
-        <div className="ml-auto text-xs text-ink-500">페르소나: <span className="text-ink-200 font-medium">{active}</span></div>
-      </header>
+      <ScenarioHeader scenario="A" title="의미 검색" tech="자연어 → BM25 (Nori 한글) + Cohere KNN 하이브리드 + RRF fusion + Bedrock Reranker → Neptune 1-hop 그래프" wow={true} />
 
       <div className="flex-1 p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div>

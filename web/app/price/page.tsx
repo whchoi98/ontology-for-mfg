@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "@/lib/api-client";
 import { useActivePersona } from "@/lib/persona-context";
 import type { Persona } from "@/lib/types";
+import { ScenarioHeader } from "@/components/ScenarioHeader";
 
 interface PriceRow {
   supplier_id: string; supplier_name?: string; unit_price?: number;
@@ -55,10 +56,7 @@ export default function PricePage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="h-14 border-b border-ink-700 bg-ink-900 flex items-center px-6">
-        <div className="text-xs text-ink-400">시나리오 G · 단가/재고 비교</div>
-        <div className="ml-auto text-xs text-ink-500">페르소나: <span className="text-ink-200 font-medium">{active}</span></div>
-      </header>
+      <ScenarioHeader scenario="G" title="단가/재고 비교" tech="Cypher SUPPLIED_BY → 협력사별 단가/재고/리드타임 매트릭스 + summary stats" />
       <div className="flex-1 p-6 max-w-3xl">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">단가 / 재고 비교</h1>
         <p className="text-sm text-ink-400 mb-4">복수 공급사별 단가·납기·OTD 매트릭스 비교</p>

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "@/lib/api-client";
 import { KpiStrip } from "@/components/KpiStrip";
 import { useActivePersona } from "@/lib/persona-context";
+import { ScenarioHeader } from "@/components/ScenarioHeader";
 
 interface EsgResult { scope1?: number; scope2?: number; scope3?: number; cbam_fee?: number; unit?: string; }
 
@@ -29,10 +30,7 @@ export default function EsgPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="h-14 border-b border-ink-700 bg-ink-900 flex items-center px-6">
-        <div className="text-xs text-ink-400">시나리오 K · ESG / CBAM</div>
-        <div className="ml-auto text-xs text-ink-500">페르소나: <span className="text-ink-200 font-medium">{active}</span></div>
-      </header>
+      <ScenarioHeader scenario="K" title="ESG / CBAM" tech="Cypher Plant·CarbonScope → Scope 1/2/3 합산 + CBAM 환산 (K-ETS 매핑)" />
       <div className="flex-1 p-6 max-w-3xl">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">탄소 배출 / ESG</h1>
         <p className="text-sm text-ink-400 mb-4">Scope 1/2/3 배출량 + EU CBAM 2026 부담금 + IRA 적격 여부</p>

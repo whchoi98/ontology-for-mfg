@@ -3,6 +3,7 @@ import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useActivePersona } from "@/lib/persona-context";
+import { ScenarioHeader } from "@/components/ScenarioHeader";
 
 interface SensorRow { sensor_id: string; name?: string; value?: number; unit?: string; status?: string; }
 interface Alert { sensor_id: string; message: string; severity?: string; }
@@ -25,10 +26,7 @@ export default function PdmPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="h-14 border-b border-ink-700 bg-ink-900 flex items-center px-6">
-        <div className="text-xs text-ink-400">시나리오 L · PdM / IoT</div>
-        <div className="ml-auto text-xs text-ink-500">페르소나: <span className="text-ink-200 font-medium">{active}</span></div>
-      </header>
+      <ScenarioHeader scenario="L" title="PdM / IoT" tech="OpenSearch Telemetry + 임계 비교 → 알람 분류 + 정비 권고" />
       <div className="flex-1 p-6 max-w-4xl">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">예지 보전 / IoT</h1>
         <p className="text-sm text-ink-400 mb-4">공장 IoT 텔레메트리 + 예지 보전 알람 + 정비 이벤트 추천</p>

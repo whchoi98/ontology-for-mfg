@@ -5,6 +5,7 @@ import { api } from "@/lib/api-client";
 import { SCMMap } from "@/components/SCMMap";
 import { useActivePersona } from "@/lib/persona-context";
 import type { TradeLane } from "@/lib/types";
+import { ScenarioHeader } from "@/components/ScenarioHeader";
 
 interface RerouteResult {
   event: string;
@@ -77,11 +78,7 @@ export default function LanePage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="h-14 border-b border-ink-700 bg-ink-900 flex items-center px-6">
-        <div className="text-xs text-ink-400">시나리오 H · 글로벌 SCM lane</div>
-        <span className="ml-3 text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 font-mono">WOW</span>
-        <div className="ml-auto text-xs text-ink-500">페르소나: <span className="text-ink-200 font-medium">{active}</span></div>
-      </header>
+      <ScenarioHeader scenario="H" title="글로벌 SCM Lane" tech="Cypher TradeLane + IRA/USMCA/CBAM 규제 매핑 → reroute 시뮬 + CBAM 부담액 환산" wow={true} />
       <div className="flex-1 p-6">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">글로벌 SCM Lane 지도</h1>
         <p className="text-sm text-ink-400 mb-4">7개국 trade lane + IRA/USMCA 이벤트 reroute 시뮬레이션</p>

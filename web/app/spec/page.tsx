@@ -5,6 +5,7 @@ import { CytoscapeView } from "@/components/CytoscapeView";
 import { useActivePersona } from "@/lib/persona-context";
 import type { CytoscapeGraph } from "@/lib/types";
 import type { Persona } from "@/lib/types";
+import { ScenarioHeader } from "@/components/ScenarioHeader";
 
 interface SpecCandidate { id: string; name?: string; score?: number; standards?: string[]; }
 
@@ -56,10 +57,7 @@ export default function SpecPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="h-14 border-b border-ink-700 bg-ink-900 flex items-center px-6">
-        <div className="text-xs text-ink-400">시나리오 D · 스펙 매치</div>
-        <div className="ml-auto text-xs text-ink-500">페르소나: <span className="text-ink-200 font-medium">{active}</span></div>
-      </header>
+      <ScenarioHeader scenario="D" title="스펙 매치" tech="자연어 요구사항 → BM25 + Cohere KNN 하이브리드 + Bedrock Reranker → 후보 매칭 + 인증/리드타임 비교" />
       <div className="flex-1 p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div>
           <h1 className="text-2xl font-bold text-ink-50 mb-1">부품 규격 매칭</h1>

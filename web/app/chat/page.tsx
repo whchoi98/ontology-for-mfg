@@ -5,6 +5,7 @@ import { chatStream } from "@/lib/api-client";
 import { useActivePersona } from "@/lib/persona-context";
 import type { Persona } from "@/lib/types";
 import { MarkdownView } from "@/components/MarkdownView";
+import { ScenarioHeader } from "@/components/ScenarioHeader";
 
 interface Message { role: "user" | "assistant"; text: string; }
 interface ToolEvent { type: string; tool?: string; content?: string; }
@@ -90,11 +91,7 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="h-14 border-b border-ink-700 bg-ink-900 flex items-center px-6">
-        <div className="text-xs text-ink-400">시나리오 B · 대화형 에이전트</div>
-        <span className="ml-3 text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 font-mono">WOW</span>
-        <div className="ml-auto text-xs text-ink-500">페르소나: <span className="text-ink-200 font-medium">{active}</span></div>
-      </header>
+      <ScenarioHeader scenario="B" title="대화형 에이전트" tech="Bedrock Converse + AgentCore Memory 멀티턴 + Tool-use (search·neptune·kb·compliance·memory) + Guardrails 4토픽 → SSE" wow={true} />
 
       <div className="flex-1 p-6 grid grid-cols-1 xl:grid-cols-2 gap-6 h-[calc(100vh-56px)]">
         <div className="flex flex-col">

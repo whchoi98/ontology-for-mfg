@@ -5,6 +5,7 @@ import { KpiStrip } from "@/components/KpiStrip";
 import { MarkdownView } from "@/components/MarkdownView";
 import { useActivePersona } from "@/lib/persona-context";
 import type { Persona } from "@/lib/types";
+import { ScenarioHeader } from "@/components/ScenarioHeader";
 
 interface KpiRow { label: string; value: string; delta?: string; }
 interface ChartItem { label: string; value: number; }
@@ -93,10 +94,7 @@ export default function InsightsPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="h-14 border-b border-ink-700 bg-ink-900 flex items-center px-6">
-        <div className="text-xs text-ink-400">시나리오 C · 인사이트</div>
-        <div className="ml-auto text-xs text-ink-500">페르소나: <span className="text-ink-200 font-medium">{active}</span></div>
-      </header>
+      <ScenarioHeader scenario="C" title="인사이트" tech="Neptune 집계 + Sonnet 4.6 분석 (마크다운 스트리밍) + Code Interpreter 차트 + Cytoscape 드릴다운" />
       <div className="flex-1 p-6 max-w-4xl">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">인사이트</h1>
         <p className="text-sm text-ink-400 mb-4">Neptune 집계 + Sonnet 4.6 스트리밍 + Code Interpreter 차트</p>

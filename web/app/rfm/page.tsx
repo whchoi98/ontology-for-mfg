@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "@/lib/api-client";
 import { KpiStrip } from "@/components/KpiStrip";
 import { useActivePersona } from "@/lib/persona-context";
+import { ScenarioHeader } from "@/components/ScenarioHeader";
 
 interface RfmRow {
   supplier_id: string; supplier_name?: string; rfm_score?: number;
@@ -49,10 +50,7 @@ export default function RfmPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="h-14 border-b border-ink-700 bg-ink-900 flex items-center px-6">
-        <div className="text-xs text-ink-400">시나리오 I · 협력사 RFM</div>
-        <div className="ml-auto text-xs text-ink-500">페르소나: <span className="text-ink-200 font-medium">{active}</span></div>
-      </header>
+      <ScenarioHeader scenario="I" title="협력사 RFM" tech="Cypher Supplier RFM 정규화 → 합성 점수 (R×F×M geometric mean) + 점수 색상 분류" />
       <div className="flex-1 p-6 max-w-4xl">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">협력사 RFM 분석</h1>
         <p className="text-sm text-ink-400 mb-4">Recency·Frequency·Monetary 기반 협력사 등급 분석</p>

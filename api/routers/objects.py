@@ -1,14 +1,22 @@
-"""Objects router — list Knowledge Graph nodes by label.
+"""Objects router — list Knowledge Graph nodes by label + per-id detail.
 
 Security: `label` is validated against the 22-class ontology allowlist before
 being used in any Cypher query. Cypher does not parameterize labels, so we MUST
 whitelist — string interpolation alone would allow injection.
+
+Retail-style 3-endpoint shape:
+- GET /api/objects                  → labels catalog
+- GET /api/objects/{label}          → list (top N by fan-out)
+- GET /api/objects/{label}/{id}     → detail with 1-hop subgraph + neighbor_summary
+- GET /api/objects/_counts          → per-label node counts (for /validation)
 """
 from __future__ import annotations
 
 import logging
 import random
 from datetime import date, timedelta
+from typing import Any
+from collections import Counter
 from fastapi import APIRouter, HTTPException, Path, Query
 
 log = logging.getLogger("mfg.objects")
@@ -362,57 +370,168 @@ def _synthesize_items(label: str, limit: int) -> list[dict]:
 
 router = APIRouter(tags=["objects"])
 
-try:
-    from api.services.neptune import get_neptune
 
-    @router.get("/objects/{label}")
-    def list_objects(
-        label: str = Path(..., description="Neptune node label, e.g. Component"),
-        limit: int = Query(100, ge=1, le=500),
-    ) -> dict:
-        safe_label = _validate_label(label)
-        items: list[dict] = []
-        try:
-            rows = get_neptune().run_cypher(
-                f"MATCH (n:{safe_label}) RETURN n LIMIT $lim",
-                {"lim": limit},
-            )
-            for r in rows:
-                node = r.get("n", r)
-                flat = _flatten_node(node)
-                if "id" not in flat or not flat.get("id"):
-                    continue
-                if "name" not in flat or not flat.get("name"):
-                    flat["name"] = flat.get("id", "?")
-                items.append(flat)
-        except Exception as e:
-            log.warning("Neptune query for %s failed: %s", safe_label, e)
-            items = []
+def _to_list_item(flat: dict, label: str) -> dict:
+    """Coerce flattened node dict into retail-shaped {id, name, rank_score, properties}."""
+    item_id = flat.get("id") or flat.get("cas_id") or flat.get("sensor_id") or "?"
+    name = flat.get("name") or flat.get("title") or item_id
+    # rank_score: pick a meaningful per-label heuristic from the synthetic data
+    rank = 0
+    if label == "Supplier":
+        rank = int(round((flat.get("rfm_recency", 0) or 0) * 100))
+    elif label == "QualityIncident":
+        rank = {"CRITICAL": 4, "HIGH": 3, "MID": 2, "LOW": 1}.get(flat.get("severity") or "?", 0)
+    elif label == "Plant":
+        rank = 1 if flat.get("operator") == "SELF" else 0
+    return {
+        "id": str(item_id),
+        "name": str(name),
+        "rank_score": rank,
+        "properties": {k: v for k, v in flat.items() if k not in ("id", "name")},
+    }
 
-        synthetic = False
-        if not items:
-            items = _synthesize_items(safe_label, limit)
-            synthetic = True
 
-        return {"label": safe_label, "items": items, "total": len(items), "_synthetic": synthetic}
+def _list_for_label(label: str, limit: int) -> tuple[list[dict], bool]:
+    items: list[dict] = []
+    synthetic = False
+    try:
+        nep = get_neptune()
+        rows = nep.run_cypher(f"MATCH (n:{label}) RETURN n LIMIT $lim", {"lim": limit})
+        for r in rows:
+            node = r.get("n", r)
+            flat = _flatten_node(node)
+            if not flat.get("id") and not flat.get("cas_id"):
+                continue
+            items.append(_to_list_item(flat, label))
+    except Exception as e:
+        log.warning("Neptune list query for %s failed: %s", label, e)
+        items = []
 
-except Exception:
-    @router.get("/objects/{label}")
-    def list_objects_stub(
-        label: str = Path(...),
-        limit: int = Query(100, ge=1, le=500),
-    ) -> dict:
-        safe_label = _validate_label(label)
-        items = _synthesize_items(safe_label, limit)
-        return {"label": safe_label, "items": items, "total": len(items), "_stub": True}
+    if not items:
+        items = [_to_list_item(it, label) for it in _synthesize_items(label, limit)]
+        synthetic = True
+    return items, synthetic
+
+
+def _build_subgraph_for_id(label: str, obj_id: str) -> tuple[dict, dict[str, int]]:
+    """Build 1-hop subgraph for the (label, id) anchor + neighbor_summary by label.
+    Falls back to a synthetic neighborhood when Neptune doesn't have the node or edges."""
+    nodes: list[dict] = []
+    edges: list[dict] = []
+    neighbor_counts: Counter = Counter()
+
+    try:
+        nep = get_neptune()
+        rows = nep.run_cypher(
+            f"MATCH (n:{label} {{id: $id}})-[r]-(m) "
+            "RETURN n, r, m LIMIT 50",
+            {"id": obj_id},
+        )
+        if rows:
+            anchor_added = False
+            seen_node_ids: set[str] = set()
+            seen_edge_ids: set[str] = set()
+            for row in rows:
+                n_node = row.get("n")
+                m_node = row.get("m")
+                rel = row.get("r")
+                # Anchor
+                if not anchor_added and n_node:
+                    nflat = _flatten_node(n_node)
+                    nodes.append({
+                        "data": {"id": nflat.get("id", obj_id), "label": label,
+                                  "name_ko": nflat.get("name", obj_id),
+                                  "name": nflat.get("name", obj_id)}
+                    })
+                    seen_node_ids.add(nflat.get("id", obj_id))
+                    anchor_added = True
+                if m_node:
+                    mflat = _flatten_node(m_node)
+                    mid = mflat.get("id") or mflat.get("cas_id") or "?"
+                    mlabel = (m_node.get("~labels") or [label])[0] if isinstance(m_node, dict) else label
+                    if mid not in seen_node_ids:
+                        nodes.append({
+                            "data": {"id": mid, "label": mlabel,
+                                      "name_ko": mflat.get("name", mid),
+                                      "name": mflat.get("name", mid)}
+                        })
+                        seen_node_ids.add(mid)
+                        neighbor_counts[mlabel] += 1
+                if rel and isinstance(rel, dict):
+                    rel_id = rel.get("~id", f"e_{len(edges)}")
+                    rel_type = rel.get("~type", "REL")
+                    src = rel.get("~start") or obj_id
+                    dst = rel.get("~end") or "?"
+                    if rel_id not in seen_edge_ids:
+                        edges.append({"data": {"id": rel_id, "source": src, "target": dst, "type": rel_type}})
+                        seen_edge_ids.add(rel_id)
+    except Exception as e:
+        log.warning("Neptune subgraph for %s/%s failed: %s", label, obj_id, e)
+
+    if not nodes:
+        # Synthesize 1-hop neighborhood per label
+        nodes, edges, neighbor_counts = _synthesize_subgraph(label, obj_id)
+
+    return {"nodes": nodes, "edges": edges}, dict(neighbor_counts)
+
+
+def _synthesize_subgraph(label: str, obj_id: str) -> tuple[list[dict], list[dict], Counter]:
+    """Build a deterministic synthetic 1-hop neighborhood when Neptune is sparse."""
+    rng = random.Random(f"{label}/{obj_id}")
+    nodes = [{"data": {"id": obj_id, "label": label, "name_ko": obj_id, "name": obj_id}}]
+    edges: list[dict] = []
+    counts: Counter = Counter()
+
+    # Per-label neighborhood archetypes
+    archetypes = {
+        "Product":   [("HAS_MODULE", "Module", 4), ("MANUFACTURED_BY", "Manufacturer", 1), ("SOLD_TO", "CustomerAccount", 2)],
+        "Module":    [("CONSISTS_OF", "Component", 5)],
+        "Component": [("CONFORMS_TO", "Standard", 2), ("SUPPLIED_BY", "Supplier", 3), ("CONTAINS_SUBSTANCE", "Substance", 2)],
+        "Supplier":  [("SUPPLIES", "Component", 4), ("LOCATED_IN", "Region", 1), ("SUB_SUPPLIES", "SubSupplier", 2)],
+        "Plant":     [("LOCATED_IN", "Region", 1), ("EMITS", "CarbonScope", 3), ("OPERATES", "Manufacturer", 1)],
+        "TradeLane": [("CONNECTS", "Region", 2), ("SUBJECT_TO", "Regulation", 1)],
+        "Standard":  [("CONFORMED_BY", "Component", 5)],
+        "Regulation":[("REGULATES", "Substance", 4)],
+        "Substance": [("REGULATED_BY", "Regulation", 1), ("CONTAINED_IN", "Component", 3)],
+        "QualityIncident": [("ABOUT", "Component", 1), ("ABOUT", "Plant", 1), ("ADDRESSED_BY", "EightDReport", 1)],
+        "EightDReport":   [("ADDRESSES", "QualityIncident", 1), ("IDENTIFIES", "RootCause", 1)],
+        "RootCause":      [("LINKED_TO", "Supplier", 1), ("LINKED_TO", "Component", 1)],
+        "Telemetry":      [("FROM", "Plant", 1)],
+        "MaintenanceEvent":[("ON", "Component", 1)],
+        "ESGIndicator":   [("MEASURED_AT", "Plant", 1)],
+        "CarbonScope":    [("EMITTED_BY", "Plant", 1)],
+        "Manufacturer":   [("MAKES", "Product", 4), ("OPERATES", "Plant", 3)],
+        "CustomerAccount":[("BUYS", "Product", 4)],
+        "Region":         [("HOSTS", "Plant", 2), ("CONNECTED_VIA", "TradeLane", 3)],
+        "RawMaterial":    [("USED_IN", "Component", 3)],
+        "Certification":  [("FOR", "Plant", 1), ("OF", "Standard", 1)],
+        "SubSupplier":    [("SUPPLIES", "Supplier", 1)],
+    }
+    for rel_type, neighbor_label, n in archetypes.get(label, [("RELATED_TO", "Component", 3)]):
+        for i in range(n):
+            nid = f"{neighbor_label[:3].upper()}-{rng.randint(1000, 9999)}-{i}"
+            nodes.append({
+                "data": {"id": nid, "label": neighbor_label,
+                          "name_ko": f"{neighbor_label} {i+1}",
+                          "name": f"{neighbor_label} {i+1}"}
+            })
+            edges.append({"data": {
+                "id": f"e_{label}_{rel_type}_{i}",
+                "source": obj_id, "target": nid, "type": rel_type,
+            }})
+            counts[neighbor_label] += 1
+    return nodes, edges, counts
 
 
 @router.get("/objects")
 def list_label_allowlist() -> dict:
-    """Public catalog of allowed labels — used by UI Sidebar to enumerate KG objects."""
+    """Public catalog of allowed labels."""
     return {"labels": sorted(_ALLOWED_LABELS), "count": len(_ALLOWED_LABELS)}
 
 
+# IMPORTANT: declare static literal-prefix routes BEFORE the dynamic {label}
+# route, because FastAPI matches in declaration order and `_counts` would
+# otherwise be captured as `label="_counts"` (which fails allowlist validation).
 @router.get("/objects/_counts")
 def label_counts() -> dict:
     """Return node count per label (for /validation page)."""
@@ -441,3 +560,66 @@ def label_counts() -> dict:
         }
 
     return {"counts": counts, "total_nodes": sum(counts.values())}
+
+
+@router.get("/objects/{label}")
+def list_objects(
+    label: str = Path(..., description="Neptune node label, e.g. Component"),
+    limit: int = Query(50, ge=1, le=500),
+) -> dict:
+    safe_label = _validate_label(label)
+    items, synthetic = _list_for_label(safe_label, limit)
+    return {
+        "type": safe_label,
+        "label": safe_label,
+        "total": len(items),
+        "items": items,
+        "_synthetic": synthetic,
+    }
+
+
+@router.get("/objects/{label}/{obj_id}")
+def object_detail(
+    label: str = Path(...),
+    obj_id: str = Path(..., description="Node id (e.g. AMZN-CMP-IC-00001)"),
+) -> dict:
+    safe_label = _validate_label(label)
+
+    # Locate the anchor node properties
+    properties: dict[str, Any] = {}
+    name = obj_id
+    try:
+        rows = get_neptune().run_cypher(
+            f"MATCH (n:{safe_label} {{id: $id}}) RETURN n LIMIT 1",
+            {"id": obj_id},
+        )
+        if rows:
+            flat = _flatten_node(rows[0].get("n", {}))
+            properties = {k: v for k, v in flat.items() if k != "id"}
+            name = flat.get("name", obj_id)
+    except Exception as e:
+        log.warning("Neptune anchor lookup failed: %s", e)
+
+    if not properties:
+        # Synthesize props by finding the node in the synthetic list
+        synth = _synthesize_items(safe_label, 200)
+        match = next((it for it in synth if it.get("id") == obj_id or it.get("cas_id") == obj_id), None)
+        if match is None and synth:
+            match = synth[0]
+        if match:
+            name = match.get("name", obj_id)
+            properties = {k: v for k, v in match.items() if k not in ("id", "name")}
+
+    subgraph, neighbor_summary = _build_subgraph_for_id(safe_label, obj_id)
+
+    return {
+        "type": safe_label,
+        "label": safe_label,
+        "id": obj_id,
+        "name": name,
+        "properties": properties,
+        "subgraph": subgraph,
+        "neighbor_summary": neighbor_summary,
+    }
+
+

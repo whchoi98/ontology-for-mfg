@@ -4,6 +4,7 @@ import { CheckCircle, XCircle } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useActivePersona } from "@/lib/persona-context";
 import type { Persona } from "@/lib/types";
+import { ScenarioHeader } from "@/components/ScenarioHeader";
 
 interface Violation { rule: string; detail?: string; }
 type Sample = { label: string; persona: Persona; value: string; };
@@ -54,10 +55,7 @@ export default function CompliancePage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="h-14 border-b border-ink-700 bg-ink-900 flex items-center px-6">
-        <div className="text-xs text-ink-400">시나리오 E · 규제 검증</div>
-        <div className="ml-auto text-xs text-ink-500">페르소나: <span className="text-ink-200 font-medium">{active}</span></div>
-      </header>
+      <ScenarioHeader scenario="E" title="규제 준수 검사" tech="Cypher 부품 조회 → REACH-SVHC + RoHS 6+4 + AEC-Q100/200 결정론적 검증 엔진" />
       <div className="flex-1 p-6 max-w-2xl">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">규제 준수 검사</h1>
         <p className="text-sm text-ink-400 mb-4">REACH SVHC / RoHS / PFAS / AEC-Q 준수 여부 즉시 확인</p>
