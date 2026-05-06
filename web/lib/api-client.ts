@@ -36,10 +36,14 @@ export const api = {
     postJson("/spec-match", { requirements, top_n }),
   compliance: (component_id: string) =>
     postJson("/compliance", { component_id }),
-  substitute: (component_id: string, top_n = 5) =>
-    postJson("/substitute", { component_id, top_n }),
+  substitute: (component_id: string, same_supplier_ok = false, top_n = 8) =>
+    postJson("/substitute", { component_id, same_supplier_ok, top_n }),
+  substituteSamples: (limit = 15) =>
+    getJson(`/substitute/samples?limit=${limit}`),
   price: (component_id: string) =>
     postJson("/price", { component_id }),
+  priceSamples: (limit = 15) =>
+    getJson(`/substitute/samples?limit=${limit}`),
   lanes: () => getJson("/lane"),
   reroute: (event: string) => postJson("/lane/reroute", { event }),
   rfm: (tier = 1, top_n = 20) => postJson("/supplier-rfm", { tier, top_n }),

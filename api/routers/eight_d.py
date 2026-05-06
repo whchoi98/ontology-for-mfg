@@ -81,9 +81,25 @@ def eight_d(req: EightDRequest = Body(...)) -> dict:
         log.warning("draft_eight_d failed (using fallback): %s", e)
         draft = _fallback_draft(inc["title"], reason=f"Bedrock 호출 실패: {type(e).__name__}")
 
+    # Build both shapes for the frontend:
+    # - `eight_d` (dict, original shape)
+    # - `sections` (array, frontend expects { section, title, content })
+    SECTION_TITLES = [
+        ("D1", "팀 구성 (Team Formation)",            draft.get("d1_team", "")),
+        ("D2", "문제 설명 (Problem Description)",     draft.get("d2_problem", "")),
+        ("D3", "긴급 조치 (Containment Action)",       draft.get("d3_containment", "")),
+        ("D4", "근본 원인 분석 (Root Cause)",         draft.get("d4_root_cause", "")),
+        ("D5", "영구 시정 조치 (Corrective)",         draft.get("d5_corrective", "")),
+        ("D6", "시정 조치 실행 (Implemented)",         draft.get("d6_implemented", "")),
+        ("D7", "재발 방지 (Prevention)",               draft.get("d7_prevention", "")),
+        ("D8", "팀 공로 인정 (Closure)",               draft.get("d8_closure", "")),
+    ]
+    sections = [{"section": s, "title": t, "content": c} for s, t, c in SECTION_TITLES]
+
     return {
         "incident": inc,
         "eight_d": draft,
+        "sections": sections,
         "similar_count": len(similar),
         "_fallback": "_synthetic" in inc or all(v.startswith("[") for v in draft.values()),
     }
