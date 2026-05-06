@@ -32,7 +32,7 @@ def _try_register():
         "auth",
         "search", "chat", "insights", "spec_match", "compliance",
         "substitute", "price", "scm_lane", "supplier_rfm", "eight_d",
-        "esg_cbam", "pdm", "objects",
+        "esg_cbam", "pdm", "objects", "ops",
     ]:
         try:
             mod = __import__(f"api.routers.{module_name}", fromlist=["router"])

@@ -482,30 +482,31 @@ def _synthesize_subgraph(label: str, obj_id: str) -> tuple[list[dict], list[dict
     edges: list[dict] = []
     counts: Counter = Counter()
 
-    # Per-label neighborhood archetypes
+    # Per-label neighborhood archetypes — richer (4+ neighbors) so every
+    # /objects/[type] page renders a meaningful graph.
     archetypes = {
-        "Product":   [("HAS_MODULE", "Module", 4), ("MANUFACTURED_BY", "Manufacturer", 1), ("SOLD_TO", "CustomerAccount", 2)],
-        "Module":    [("CONSISTS_OF", "Component", 5)],
-        "Component": [("CONFORMS_TO", "Standard", 2), ("SUPPLIED_BY", "Supplier", 3), ("CONTAINS_SUBSTANCE", "Substance", 2)],
-        "Supplier":  [("SUPPLIES", "Component", 4), ("LOCATED_IN", "Region", 1), ("SUB_SUPPLIES", "SubSupplier", 2)],
-        "Plant":     [("LOCATED_IN", "Region", 1), ("EMITS", "CarbonScope", 3), ("OPERATES", "Manufacturer", 1)],
-        "TradeLane": [("CONNECTS", "Region", 2), ("SUBJECT_TO", "Regulation", 1)],
-        "Standard":  [("CONFORMED_BY", "Component", 5)],
-        "Regulation":[("REGULATES", "Substance", 4)],
-        "Substance": [("REGULATED_BY", "Regulation", 1), ("CONTAINED_IN", "Component", 3)],
-        "QualityIncident": [("ABOUT", "Component", 1), ("ABOUT", "Plant", 1), ("ADDRESSED_BY", "EightDReport", 1)],
-        "EightDReport":   [("ADDRESSES", "QualityIncident", 1), ("IDENTIFIES", "RootCause", 1)],
-        "RootCause":      [("LINKED_TO", "Supplier", 1), ("LINKED_TO", "Component", 1)],
-        "Telemetry":      [("FROM", "Plant", 1)],
-        "MaintenanceEvent":[("ON", "Component", 1)],
-        "ESGIndicator":   [("MEASURED_AT", "Plant", 1)],
-        "CarbonScope":    [("EMITTED_BY", "Plant", 1)],
-        "Manufacturer":   [("MAKES", "Product", 4), ("OPERATES", "Plant", 3)],
-        "CustomerAccount":[("BUYS", "Product", 4)],
-        "Region":         [("HOSTS", "Plant", 2), ("CONNECTED_VIA", "TradeLane", 3)],
-        "RawMaterial":    [("USED_IN", "Component", 3)],
-        "Certification":  [("FOR", "Plant", 1), ("OF", "Standard", 1)],
-        "SubSupplier":    [("SUPPLIES", "Supplier", 1)],
+        "Product":         [("HAS_MODULE", "Module", 5), ("MANUFACTURED_BY", "Manufacturer", 1), ("SOLD_TO", "CustomerAccount", 3), ("CONFORMS_TO", "Standard", 2)],
+        "Module":          [("CONSISTS_OF", "Component", 6), ("PART_OF", "Product", 2)],
+        "Component":       [("CONFORMS_TO", "Standard", 3), ("SUPPLIED_BY", "Supplier", 2), ("CONTAINS_SUBSTANCE", "Substance", 2), ("PART_OF", "Module", 1)],
+        "Supplier":        [("SUPPLIES", "Component", 5), ("LOCATED_IN", "Region", 1), ("SUB_SUPPLIES", "SubSupplier", 2), ("CERTIFIED_BY", "Certification", 1)],
+        "Plant":           [("LOCATED_IN", "Region", 1), ("EMITS", "CarbonScope", 3), ("OPERATES", "Manufacturer", 1), ("HAS_SENSOR", "Telemetry", 3), ("HAS_ESG", "ESGIndicator", 2)],
+        "TradeLane":       [("CONNECTS", "Region", 2), ("SUBJECT_TO", "Regulation", 2), ("USED_BY", "Plant", 2)],
+        "Standard":        [("CONFORMED_BY", "Component", 5), ("CERT_FOR", "Certification", 2)],
+        "Regulation":      [("REGULATES", "Substance", 4), ("APPLIES_TO", "TradeLane", 2)],
+        "Substance":       [("REGULATED_BY", "Regulation", 2), ("CONTAINED_IN", "Component", 4)],
+        "QualityIncident": [("ABOUT", "Component", 1), ("ABOUT", "Plant", 1), ("ADDRESSED_BY", "EightDReport", 1), ("ROOT_CAUSE", "RootCause", 1)],
+        "EightDReport":    [("ADDRESSES", "QualityIncident", 1), ("IDENTIFIES", "RootCause", 1), ("SIMILAR_TO", "EightDReport", 2)],
+        "RootCause":       [("LINKED_TO", "Supplier", 1), ("LINKED_TO", "Component", 1), ("LINKED_TO", "Plant", 1)],
+        "Telemetry":       [("FROM", "Plant", 1), ("ON", "Component", 1), ("TRIGGERED", "MaintenanceEvent", 2), ("ALERTED", "RootCause", 1)],
+        "MaintenanceEvent":[("ON", "Component", 1), ("AT", "Plant", 1), ("TRIGGERED_BY", "Telemetry", 1)],
+        "ESGIndicator":    [("MEASURED_AT", "Plant", 1), ("RELATED", "CarbonScope", 1)],
+        "CarbonScope":     [("EMITTED_BY", "Plant", 1), ("REGULATED_BY", "Regulation", 1)],
+        "Manufacturer":    [("MAKES", "Product", 4), ("OPERATES", "Plant", 3)],
+        "CustomerAccount": [("BUYS", "Product", 4), ("LOCATED_IN", "Region", 1)],
+        "Region":          [("HOSTS", "Plant", 2), ("CONNECTED_VIA", "TradeLane", 3), ("HOSTS_SUPPLIER", "Supplier", 2)],
+        "RawMaterial":     [("USED_IN", "Component", 4), ("SOURCED_BY", "Supplier", 2)],
+        "Certification":   [("FOR", "Plant", 1), ("OF", "Standard", 1), ("ISSUED_TO", "Supplier", 1)],
+        "SubSupplier":     [("SUPPLIES", "Supplier", 1), ("LOCATED_IN", "Region", 1)],
     }
     for rel_type, neighbor_label, n in archetypes.get(label, [("RELATED_TO", "Component", 3)]):
         for i in range(n):
