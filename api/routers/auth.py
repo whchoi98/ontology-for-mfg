@@ -70,10 +70,18 @@ async def callback(code: str = Query(...)) -> RedirectResponse:
 
 @router.get("/logout")
 async def logout() -> RedirectResponse:
-    """Clear cookie and redirect to Cognito logout."""
+    """Clear cookie and redirect to Cognito logout.
+
+    Cognito requires `logout_uri` to exact-string-match one of the App
+    Client's registered LogoutURLs — trailing slash and all. The pool has
+    `https://mfg-ontology.whchoi.net/` registered (with slash), so we strip
+    any trailing slash from APP_BASE and re-add exactly one to avoid drift
+    if APP_BASE_URL ever changes shape.
+    """
+    logout_redirect = APP_BASE.rstrip("/") + "/"
     cognito_logout = (
         f"https://{COGNITO_DOMAIN}/logout?client_id={CLIENT_ID}"
-        f"&logout_uri={APP_BASE}"
+        f"&logout_uri={logout_redirect}"
     )
     response = RedirectResponse(url=cognito_logout)
     response.delete_cookie(COOKIE_NAME, path="/")
