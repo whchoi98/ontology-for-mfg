@@ -8,7 +8,7 @@ import {
   Activity, GitBranch, BookOpen, Package, Boxes, Cpu, Layers,
   Factory, Building2, Building, Briefcase, MapPin, Award, Scale,
   FlaskConical, AlertTriangle, Wrench, Cloud, Database, Brain,
-  ListTree, Network, Sparkles, ChevronRight, ClipboardCheck,
+  ListTree, Network, Sparkles, ChevronRight, ClipboardCheck, Code2,
 } from 'lucide-react';
 
 import { SidebarAuth } from './SidebarAuth';
@@ -91,6 +91,12 @@ const SECTIONS: Section[] = [
       { href: '/ops/memory',    icon: Brain,       label: '메모리 히스토리' },
       { href: '/ops/eval',      icon: Activity,    label: '평가 결과' },
       { href: '/ops/trace',     icon: ListTree,    label: '도구 호출 트레이스' },
+    ],
+  },
+  {
+    title: '개발자 도구 (Dev Tools)',
+    items: [
+      { href: '/codegraph', icon: Code2, label: '코드 지식 그래프' },
     ],
   },
 ];

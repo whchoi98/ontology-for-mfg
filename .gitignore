@@ -14,3 +14,7 @@ data/output/
 
 web/.next/
 web/node_modules/
+
+# graphify CLI raw output — the snapshot we ship lives at
+# web/public/codegraph/ (committed) so the Web container serves it.
+graphify-out/

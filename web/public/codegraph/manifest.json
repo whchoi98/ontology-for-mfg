@@ -1,0 +1,922 @@
+{
+  "/home/ec2-user/my-project/ontology-for-mfg/data/__init__.py": {
+    "mtime": 1777964746.3753638,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/schemas.py": {
+    "mtime": 1777966632.956566,
+    "hash": "264427ead43265f9986c02925f6538de"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/load_graph.py": {
+    "mtime": 1777986104.8913758,
+    "hash": "f17809a1fba6adbe1696f24a1f1d9c71"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/load_search.py": {
+    "mtime": 1777987125.684836,
+    "hash": "6f0b7d4ebb9ad167b47395ff09ea66be"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/public/__init__.py": {
+    "mtime": 1777964748.3253138,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/public/jedec.py": {
+    "mtime": 1777967189.1821764,
+    "hash": "151655334962b0691d307f34cda0d6dc"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/public/ipc.py": {
+    "mtime": 1777967207.631697,
+    "hash": "8b2e25a11153810fa4fde5e3ccf17fb6"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/public/aec_q.py": {
+    "mtime": 1777967233.2210338,
+    "hash": "375fc1b1b3e55707a35bac4bdb919dea"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/public/iso_iatf.py": {
+    "mtime": 1777967261.2503042,
+    "hash": "db437a04567b3ff09887496f51bd86b7"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/public/reach_svhc.py": {
+    "mtime": 1777967305.1791663,
+    "hash": "fd2b8cec51ad9c889fb89ed653a2f006"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/public/rohs.py": {
+    "mtime": 1777967327.7785816,
+    "hash": "07abe292cd2f5a6c0a2171aaba4b6d69"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/public/cbam.py": {
+    "mtime": 1777967354.1478987,
+    "hash": "da0149e9bd859ca1f89cf7b5e7a59676"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/public/us_trade.py": {
+    "mtime": 1777967379.437244,
+    "hash": "c20e9b15b2f2efee790ed293363b18c6"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/public/geo.py": {
+    "mtime": 1777967434.5458152,
+    "hash": "c7bb5e45e282b42df4fc20ba1319af8e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/__init__.py": {
+    "mtime": 1777964750.0152705,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/_bedrock.py": {
+    "mtime": 1777967069.0952835,
+    "hash": "a715b1be0e07d00ca5ce2131e6dbf9d6"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/products.py": {
+    "mtime": 1777967673.4796238,
+    "hash": "06a22bf92b246751b5dbef7a34c2e836"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/boms.py": {
+    "mtime": 1777968038.4601657,
+    "hash": "19deb39cd9de12312f898f29a03ec68c"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/enrich_components.py": {
+    "mtime": 1777967764.237274,
+    "hash": "68977157702d0ffa19a63df9db53cc36"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/suppliers.py": {
+    "mtime": 1777967810.3360791,
+    "hash": "72eb313a02c1f8f44251139ed49eef4e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/customers.py": {
+    "mtime": 1777967854.394937,
+    "hash": "f3a0726c6b875b07d24e1b9652ee22a9"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/plants.py": {
+    "mtime": 1777967863.0847118,
+    "hash": "84afa6e91588c61e0821b276fe9c1d17"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/lanes.py": {
+    "mtime": 1777967873.9044313,
+    "hash": "c04490570fe58b436ba1beeb4bd1fd54"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/telemetry.py": {
+    "mtime": 1777967972.021889,
+    "hash": "27e92f45c31ceafa4ca52e6fb9474e88"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/maintenance.py": {
+    "mtime": 1777967978.7117157,
+    "hash": "7dd8afa11a9824ce07aeb1ee0c083720"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/esg.py": {
+    "mtime": 1777967988.0614734,
+    "hash": "1e20a810a2d1d5741ae10c90b4c6bc27"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/manufacturers.py": {
+    "mtime": 1777968322.8927934,
+    "hash": "6b35580eb060204e6a60072512f06c7f"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/data/synthetic/incidents.py": {
+    "mtime": 1778138790.7989995,
+    "hash": "7d6c3a11e27d9001c90eb52c1feaf5cb"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/ontology/__init__.py": {
+    "mtime": 1777964751.7452257,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/ontology/upload.py": {
+    "mtime": 1777986082.45196,
+    "hash": "57e6c821db2e410a7ffd6e481692073e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/ontology/adapters/__init__.py": {
+    "mtime": 1777964754.715149,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/ontology/adapters/jedec_to_ks.py": {
+    "mtime": 1777967398.6267467,
+    "hash": "c4525276d79a31bc703dfc2b5ffa060b"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/ontology/adapters/reach_to_kreach.py": {
+    "mtime": 1777967405.7365623,
+    "hash": "6ca04f0ea1c748e543f5ccfa82f5c6fc"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/ontology/adapters/cbam_to_kets.py": {
+    "mtime": 1777967414.376338,
+    "hash": "6551369e9c7d43a8afcb032911a5a6cf"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/jest.config.js": {
+    "mtime": 1777968586.7359662,
+    "hash": "2f9353c07aeb3c4d8fdf129351bef0e3"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/bin/app.ts": {
+    "mtime": 1777980104.027353,
+    "hash": "825bfc339899e3fc9cf2cfd35e7a61fe"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/lib/network-stack.ts": {
+    "mtime": 1777970371.5397227,
+    "hash": "724f838dede588ae9b5898ead13f8351"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/lib/data-stack.ts": {
+    "mtime": 1777970955.3446045,
+    "hash": "9fb07942c8d5888da8b143a724a832cd"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/lib/ai-stack.ts": {
+    "mtime": 1777972623.4514315,
+    "hash": "98ab06491b4e25ec9d0d6ea1f1855075"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/lib/compute-stack.ts": {
+    "mtime": 1777991940.7896764,
+    "hash": "61f795d752bf6a48efb73028b7e8572e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/lib/edge-stack.ts": {
+    "mtime": 1778040290.0539048,
+    "hash": "d58ec3be370e89b69b9cf197d03f97a9"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/lib/observability-stack.ts": {
+    "mtime": 1777969664.5880466,
+    "hash": "ac058c70253faede6754727cb410fa54"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/test/network-stack.test.ts": {
+    "mtime": 1777968696.5031302,
+    "hash": "2318d3fda27dd31070e18cf74ba23833"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/test/data-stack.test.ts": {
+    "mtime": 1777969060.743698,
+    "hash": "9c70835a6764c20f85c43aea44312613"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/test/ai-stack.test.ts": {
+    "mtime": 1777969086.5530257,
+    "hash": "8efbdc7e7f63db7acbabf9b5a426de10"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/test/compute-stack.test.ts": {
+    "mtime": 1777969150.7213533,
+    "hash": "63a761248eb2526e97437f54521e4cae"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/test/edge-stack.test.ts": {
+    "mtime": 1777969587.930029,
+    "hash": "5696c9e004177dacead3f50f34e7b8cf"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/test/observability-stack.test.ts": {
+    "mtime": 1777969638.898717,
+    "hash": "9581cbeef967e443dc3231f148b76f21"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/cdk.out/asset.faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6/index.js": {
+    "mtime": 1777969317.3970337,
+    "hash": "5fbdabcdca0c4f7b2c97dda725f936a4"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/cdk.out/asset.56f7467bbde8a5efebcf57ae9e460027607099bab9f844669dcf5d800172ee5a/index.js": {
+    "mtime": 1777969786.1548958,
+    "hash": "8f27486d799ca5f1afd7b1a4b97a65e6"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/cdk.out/asset.d2191f6f199b95d1c044799f514b1ceca87200b3014c43c34839aad03dc69b8c/__entrypoint__.js": {
+    "mtime": 1777980115.207065,
+    "hash": "11b4baf36f4f3cc64a23100523aa68b7"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/cdk.out/asset.d2191f6f199b95d1c044799f514b1ceca87200b3014c43c34839aad03dc69b8c/index.js": {
+    "mtime": 1777980115.207065,
+    "hash": "7e17f05cb13a004d1dfae98b925311cc"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/cdk.out/asset.f06f7035054cb2aada184c7c251ec5cb31fb6b5e975284939b9ff097603ea769/__entrypoint__.js": {
+    "mtime": 1777980115.207065,
+    "hash": "11b4baf36f4f3cc64a23100523aa68b7"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/cdk.out/asset.f06f7035054cb2aada184c7c251ec5cb31fb6b5e975284939b9ff097603ea769/index.js": {
+    "mtime": 1777980115.207065,
+    "hash": "7e11d866efaf85b6db4eb2413c5f319e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/config.py": {
+    "mtime": 1778030065.9691699,
+    "hash": "417af6836873da3311e1a1e9d5b8fb1f"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/aws_clients.py": {
+    "mtime": 1777989174.2215695,
+    "hash": "92ace3c8bbe3bd78a68ce92491f227c4"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/main.py": {
+    "mtime": 1778040851.6093245,
+    "hash": "3146d6526e546c39072508e068346f73"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/__init__.py": {
+    "mtime": 1777989188.4611995,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/middleware_auth.py": {
+    "mtime": 1778001132.7407336,
+    "hash": "fa611b6724b21b98096fa529f8d74335"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/__init__.py": {
+    "mtime": 1777989738.006918,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/search.py": {
+    "mtime": 1777989744.6567457,
+    "hash": "91b9ccfd32c84016f77c5fa7108983a2"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/chat.py": {
+    "mtime": 1778038640.2166598,
+    "hash": "cd95e8397d4ed7ca75021e8fef17f833"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/insights.py": {
+    "mtime": 1778031305.0370123,
+    "hash": "02ae6651f6e8f75c1cd92ca11b0b4db5"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/spec_match.py": {
+    "mtime": 1778040310.7033691,
+    "hash": "ccf9216df5f3589b77001e275886bdb5"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/compliance.py": {
+    "mtime": 1778031338.106155,
+    "hash": "791149fca9e6b7fe836f7fa9f65292fa"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/substitute.py": {
+    "mtime": 1778040429.8302789,
+    "hash": "6bf97f35a7ba5e090b1cbac175103f75"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/price.py": {
+    "mtime": 1778041305.4275577,
+    "hash": "03803a5bf2b96ff5a0b13bf5a514c3ad"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/scm_lane.py": {
+    "mtime": 1778032122.3157742,
+    "hash": "34cc13c038ef64fb3c43efa66195358c"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/supplier_rfm.py": {
+    "mtime": 1778029113.1539195,
+    "hash": "0fe17be25778200f05a46a1754eea720"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/esg_cbam.py": {
+    "mtime": 1778029078.8348112,
+    "hash": "39b854a3dfb829e6ac758b24905f0015"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/pdm.py": {
+    "mtime": 1778029426.3157852,
+    "hash": "865aa25c11d70b2b5291518543c6d91a"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/auth.py": {
+    "mtime": 1778140495.5148518,
+    "hash": "9b75977e2f4fa4beefdccb40b353da93"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/eight_d.py": {
+    "mtime": 1778140214.5821202,
+    "hash": "678274b92d4e3900a8f4c9a2dbf3b686"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/objects.py": {
+    "mtime": 1778138790.7989995,
+    "hash": "2b1ac3493025e90234aea1a6152c6090"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/routers/ops.py": {
+    "mtime": 1778138790.7989995,
+    "hash": "7d192b671224deadcd3e703daf61e249"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/__init__.py": {
+    "mtime": 1777989188.7211926,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/neptune.py": {
+    "mtime": 1777998285.864736,
+    "hash": "bf46a1d09347fd38c2e1b28cc9c76c7a"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/embedding.py": {
+    "mtime": 1778000109.0673494,
+    "hash": "c5befbbffdf27ead13796feefcd80a25"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/search.py": {
+    "mtime": 1777989331.8774865,
+    "hash": "7f4db173b9dcc15df5c2313a79da3965"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/kb.py": {
+    "mtime": 1777989356.5068462,
+    "hash": "9bd17bd620f151899262bde7c1fb8354"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/guardrails.py": {
+    "mtime": 1777989359.2267756,
+    "hash": "f7240d527d90a91354006fc679967743"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/memory.py": {
+    "mtime": 1777989373.3664076,
+    "hash": "f7d14209468b46caa24c3372152e7d6a"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/reranker.py": {
+    "mtime": 1778000123.7969663,
+    "hash": "486ccd7d6b14eaedc1bd388edabc273d"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/agent.py": {
+    "mtime": 1778038657.5762117,
+    "hash": "4bd55c61b382d2fdf9b1cd312b21b6e0"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/compliance_engine.py": {
+    "mtime": 1777989524.9624646,
+    "hash": "2b48149a3c659c5fcae840ff8e1f7715"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/carbon_calc.py": {
+    "mtime": 1777989590.5507565,
+    "hash": "f54e4c431395e8fb20e140143484a3a5"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/lane_router.py": {
+    "mtime": 1777989618.1600363,
+    "hash": "30cf77b07f1482ba213ca888bfefbfe8"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/rfm_scorer.py": {
+    "mtime": 1777989642.5894,
+    "hash": "b91799bd35875c66370d8753af773ea9"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/services/eight_d_writer.py": {
+    "mtime": 1778138790.7989995,
+    "hash": "dee9f55a9d6562ceddbf3cbb7bb790f0"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/next.config.js": {
+    "mtime": 1777991127.66081,
+    "hash": "a144bdfce725261a421d8633086c2ce9"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/postcss.config.js": {
+    "mtime": 1777991133.300664,
+    "hash": "835cfcbb2d123f0abba7aabcff7176bd"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/next-env.d.ts": {
+    "mtime": 1777991316.7159004,
+    "hash": "b5ed9dd8b4c5ba8e5ab8e6a379c15838"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/tailwind.config.ts": {
+    "mtime": 1778138790.7989995,
+    "hash": "e74727a62ba529e0d96f125f688dc862"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/layout.tsx": {
+    "mtime": 1777995943.685601,
+    "hash": "d14914f83da29d37b9db46fc87f2542b"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/page.tsx": {
+    "mtime": 1778138790.7989995,
+    "hash": "6546898a24ab8ed77a325c57426cb9d3"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/api/health-web/route.ts": {
+    "mtime": 1777991145.5403464,
+    "hash": "40821e10cd772392618028722e235ee1"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(buyer)/layout.tsx": {
+    "mtime": 1777996728.7352114,
+    "hash": "9ab252c8096c76d4dadc63f845dbdfa3"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(buyer)/buyer/search/page.tsx": {
+    "mtime": 1777991441.9926424,
+    "hash": "dffb7f9bacfb7df40dfb574532937265"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(buyer)/buyer/chat/page.tsx": {
+    "mtime": 1778026278.457585,
+    "hash": "bea182859599cd7792f2ffa35445ba0d"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(buyer)/buyer/insights/page.tsx": {
+    "mtime": 1777991457.6222365,
+    "hash": "6736b1bb813a268044c2ecb642696a5d"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(buyer)/buyer/substitute/page.tsx": {
+    "mtime": 1777991467.331984,
+    "hash": "ef7d93dea6c9885908cc3905de38d59c"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(buyer)/buyer/price/page.tsx": {
+    "mtime": 1777991470.2719078,
+    "hash": "e2dc28cba122881334cf2b75965cfd17"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(buyer)/buyer/rfm/page.tsx": {
+    "mtime": 1778026315.1466196,
+    "hash": "140365f77b8de3c572b1970595a1ff01"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(engineer)/layout.tsx": {
+    "mtime": 1777996728.7352114,
+    "hash": "9ab252c8096c76d4dadc63f845dbdfa3"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(engineer)/engineer/search/page.tsx": {
+    "mtime": 1777991488.8114262,
+    "hash": "7cf550e36ed1a3ae25f0556947e8b393"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(engineer)/engineer/chat/page.tsx": {
+    "mtime": 1778026283.3474574,
+    "hash": "c2c9cef0f5ae2c0be8a81a3c51bbb050"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(engineer)/engineer/spec/page.tsx": {
+    "mtime": 1777991505.61099,
+    "hash": "dd759836af999ec3e94a5ed04505bb7f"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(engineer)/engineer/compliance/page.tsx": {
+    "mtime": 1777991512.1408203,
+    "hash": "bcf60d48ffe47845b524bd7dd99de66a"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(engineer)/engineer/substitute/page.tsx": {
+    "mtime": 1777991517.270687,
+    "hash": "c80d6b769209564cc2464130fd4cf7dc"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(engineer)/engineer/eight-d/page.tsx": {
+    "mtime": 1777991525.2304802,
+    "hash": "9659a599e802d3a182692d2506d3e339"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(quality)/layout.tsx": {
+    "mtime": 1777996728.7452111,
+    "hash": "9ab252c8096c76d4dadc63f845dbdfa3"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(quality)/quality/insights/page.tsx": {
+    "mtime": 1777991532.890281,
+    "hash": "8b9fc16833d26b02a8a314932f9f22ea"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(quality)/quality/compliance/page.tsx": {
+    "mtime": 1777991538.7401288,
+    "hash": "50e313545c0435f3535036053a1f41ef"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(quality)/quality/rfm/page.tsx": {
+    "mtime": 1778026317.8265498,
+    "hash": "abbb46f1512060a9c9169ce46dd22c39"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(quality)/quality/eight-d/page.tsx": {
+    "mtime": 1777991556.6596625,
+    "hash": "80acb575ef85e603b23717c2d216fb81"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(quality)/quality/esg/page.tsx": {
+    "mtime": 1777991562.7395043,
+    "hash": "f852a82a6c195cdc66179eadaa7ab3fb"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(quality)/quality/pdm/page.tsx": {
+    "mtime": 1777991571.129286,
+    "hash": "f95accebb93b3c4da3a959a3f2465c00"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(scm)/layout.tsx": {
+    "mtime": 1777996728.7452111,
+    "hash": "9ab252c8096c76d4dadc63f845dbdfa3"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(scm)/scm/insights/page.tsx": {
+    "mtime": 1777991581.0990264,
+    "hash": "a0e0bb9637b81c2bf9e05abf13cbfa6f"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(scm)/scm/price/page.tsx": {
+    "mtime": 1777991586.8888757,
+    "hash": "17b8e98d6f542ed3b86cf3f38ad044ff"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(scm)/scm/lane/page.tsx": {
+    "mtime": 1777991594.6886728,
+    "hash": "a93f3dad5b7393c9327feb86f5fdb43b"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(scm)/scm/rfm/page.tsx": {
+    "mtime": 1778026322.0664392,
+    "hash": "93115b58de95ff2507b2e59addadef40"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(scm)/scm/esg/page.tsx": {
+    "mtime": 1777991608.4983134,
+    "hash": "13e6c936091f13c933077a4d7940eba9"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(plant)/layout.tsx": {
+    "mtime": 1777996728.7352114,
+    "hash": "9ab252c8096c76d4dadc63f845dbdfa3"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(plant)/plant/lane/page.tsx": {
+    "mtime": 1777991619.898016,
+    "hash": "45e18883da98425b14f0693f6c5350b7"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(plant)/plant/eight-d/page.tsx": {
+    "mtime": 1777991628.7577853,
+    "hash": "3c85b03753777ac947cafca0de50f444"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(plant)/plant/esg/page.tsx": {
+    "mtime": 1777991633.3276663,
+    "hash": "343934de5f149985459c6fd421a356e7"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/(plant)/plant/pdm/page.tsx": {
+    "mtime": 1777991643.2874072,
+    "hash": "588cb10d3dd65c6674a814854bb9a851"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/search/page.tsx": {
+    "mtime": 1778138790.7989995,
+    "hash": "8fad38d1ea9afbcc33099d57649550d9"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/chat/page.tsx": {
+    "mtime": 1778138790.7989995,
+    "hash": "c52b874df83f0b2a032386d182d93ea8"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/insights/page.tsx": {
+    "mtime": 1778032792.7183783,
+    "hash": "d4fb984509c3b69c434a17f1f55cc07e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/spec/page.tsx": {
+    "mtime": 1778032792.7183783,
+    "hash": "2bddded437761009341a609ce00d7b7e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/compliance/page.tsx": {
+    "mtime": 1778032792.7183783,
+    "hash": "311d9700b347e538b49d02614dd89e18"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/substitute/page.tsx": {
+    "mtime": 1778138790.7989995,
+    "hash": "f845bba4ca0790a6bbe35ca94ef60794"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/price/page.tsx": {
+    "mtime": 1778138790.7989995,
+    "hash": "a27760e7283c19c213cc816da50212d5"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/lane/page.tsx": {
+    "mtime": 1778138790.7989995,
+    "hash": "626798d5f829761d8ff2c4877bee2db9"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/rfm/page.tsx": {
+    "mtime": 1778032792.7183783,
+    "hash": "69a5fb19db827113f18ea593efad3253"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/eight-d/page.tsx": {
+    "mtime": 1778140309.659658,
+    "hash": "cbdf6625a254945e572ed72c04ceb77e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/esg/page.tsx": {
+    "mtime": 1778032792.7183783,
+    "hash": "520e1deb0fe133e5166480a3c3602d4c"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/pdm/page.tsx": {
+    "mtime": 1778032792.7183783,
+    "hash": "a9526588c757d09b924d9e0a958c6d09"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/schema/page.tsx": {
+    "mtime": 1777996580.019071,
+    "hash": "bcaf8060719a6a6185727105597cfbad"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/standards/page.tsx": {
+    "mtime": 1777996607.03837,
+    "hash": "a3c105f94582d0b43d1b6c099c62e0d1"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/validation/page.tsx": {
+    "mtime": 1777996627.3778415,
+    "hash": "fa65be2db58ee487c5c2b5f661b0dcd1"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/objects/[type]/page.tsx": {
+    "mtime": 1778138790.7989995,
+    "hash": "9b1de201108783c0787bd641866d57d9"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/app/ops/[area]/page.tsx": {
+    "mtime": 1777996733.0750988,
+    "hash": "18eb54a9670e41eec0dfe32397fc36ce"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/lib/types.ts": {
+    "mtime": 1777991203.5288422,
+    "hash": "6278568ee83cf31f0b32b2bb406b6e6d"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/lib/persona-context.tsx": {
+    "mtime": 1777995804.8692064,
+    "hash": "eee762a02edcd24235178450c3b10578"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/lib/api-client.ts": {
+    "mtime": 1778140377.9778955,
+    "hash": "71a396289a486fcc78257803b485fb28"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/components/PersonaSwitch.tsx": {
+    "mtime": 1777995864.8776467,
+    "hash": "51f931a8c32be791b727445a16b62679"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/components/KpiStrip.tsx": {
+    "mtime": 1777991248.3876774,
+    "hash": "0ddfff05156f6210574f2a152415a838"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/components/BomTree.tsx": {
+    "mtime": 1777991278.0169077,
+    "hash": "058ae0bda637749ff055b9a93fa71199"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/components/Sidebar.tsx": {
+    "mtime": 1777995838.7383263,
+    "hash": "2bc9c11ce11fad5ea16a8c416db0a194"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/components/SidebarAuth.tsx": {
+    "mtime": 1777995851.5279937,
+    "hash": "3f5fcca1e269fd32eefce0b3911513bf"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/components/MarkdownView.tsx": {
+    "mtime": 1778030243.9145474,
+    "hash": "1a60215d3ccc685ee56c364385157378"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/components/CytoscapeView.tsx": {
+    "mtime": 1778138790.7989995,
+    "hash": "ee2f0b04293905a542fc1df0c25e1a1e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/components/GuidedTour.tsx": {
+    "mtime": 1778138790.7989995,
+    "hash": "e59bf6e49b2368ad9c8e068975dd30fd"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/components/SCMMap.tsx": {
+    "mtime": 1778138790.7989995,
+    "hash": "9a848ac26f0515bdc10eccf8c88a8436"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/web/components/ScenarioHeader.tsx": {
+    "mtime": 1778138790.7989995,
+    "hash": "0568bfeeaf909b9b937fc5dfb6899f41"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/__init__.py": {
+    "mtime": 1777964758.4550521,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/conftest.py": {
+    "mtime": 1778000168.165813,
+    "hash": "59de0bf3863d2a5b92234166020257f2"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/__init__.py": {
+    "mtime": 1777964760.9149885,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_schemas.py": {
+    "mtime": 1777965860.5665214,
+    "hash": "a6866872ba92d0a1a37620cb1094cb8e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_bedrock_helper.py": {
+    "mtime": 1777966842.661147,
+    "hash": "3f434d8f10586efa1d643018bfb3b24d"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_jedec.py": {
+    "mtime": 1777967178.0124655,
+    "hash": "2df0fcf69161d31657076398676c0e1f"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_ipc.py": {
+    "mtime": 1777967212.9315596,
+    "hash": "237cd7ca8cd63bcdc158c04e60e67410"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_aec_q.py": {
+    "mtime": 1777967238.8908868,
+    "hash": "187400f88d84bc2268290bcff066f25f"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_iso_iatf.py": {
+    "mtime": 1777967266.9501567,
+    "hash": "9613636046c1453e76d33994bd593fc5"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_reach_svhc.py": {
+    "mtime": 1777967277.8698738,
+    "hash": "426ea35904b10534c638d488a7dfee27"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_rohs.py": {
+    "mtime": 1777967317.01886,
+    "hash": "c86f3bd4b7ac0df37c87c6b1d3f5a8c7"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_cbam.py": {
+    "mtime": 1777967342.4582014,
+    "hash": "c22760e275dfbb7181465423ff3f00b8"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_us_trade.py": {
+    "mtime": 1777967367.22756,
+    "hash": "7f1af2049bcfb813ad228b6939f64503"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_geo.py": {
+    "mtime": 1777967425.3460536,
+    "hash": "16776014457821ec05994a7f597788bc"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_products_gen.py": {
+    "mtime": 1777967648.5002706,
+    "hash": "6c9147ceed3657d7c4413a6deec153dc"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_boms_gen.py": {
+    "mtime": 1777967690.8791733,
+    "hash": "55243cef68af31f56674a2db3eca3093"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_enrich_components.py": {
+    "mtime": 1777967740.3578925,
+    "hash": "65ceb9871df1c45eb414a2ee26da6c36"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_suppliers_gen.py": {
+    "mtime": 1777967822.915753,
+    "hash": "ab3b5c1497645a980d8de962bb4f524d"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_customers_plants_lanes_gen.py": {
+    "mtime": 1777967885.2041385,
+    "hash": "a1f644f8d28089df49d2f02cfab3be3f"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_ops_esg_gen.py": {
+    "mtime": 1777967960.9321764,
+    "hash": "8576291b419d6be76f5087319f01ed9f"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_full_dataset.py": {
+    "mtime": 1777968041.5000868,
+    "hash": "f21fcdd95130069c69081ef3238097a2"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_manufacturers_gen.py": {
+    "mtime": 1777968329.8526123,
+    "hash": "e61e9da993a886fbe322522e104f04ff"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_load_graph.py": {
+    "mtime": 1777968415.3504217,
+    "hash": "2af6a13c58007e9cecd4ff6bae99945b"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_load_search.py": {
+    "mtime": 1777968469.9289982,
+    "hash": "781bdaca77dc7637b2aaa0a06538d6fc"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/data/test_incidents_gen.py": {
+    "mtime": 1778138790.7989995,
+    "hash": "8753703f91d4ea96ad52919e38163bcb"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/ontology/__init__.py": {
+    "mtime": 1777964762.9549356,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/ontology/test_adapters.py": {
+    "mtime": 1777967391.5569298,
+    "hash": "657cfc6461ccb0d4df769a495f288fdf"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/ontology/test_schema_ttl.py": {
+    "mtime": 1777967594.0316813,
+    "hash": "756a5247d8cd3c71d5767a173a0044a3"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/ontology/test_upload.py": {
+    "mtime": 1777968351.9220412,
+    "hash": "9bb98559b40a5dc02b51dbf04cf76b97"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/infra/__init__.py": {
+    "mtime": 1777964764.9648836,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/__init__.py": {
+    "mtime": 1777989193.2910738,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/test_healthz.py": {
+    "mtime": 1777989194.7810354,
+    "hash": "c70e4ffae9ad109c4a5c4951aeecb0cc"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/test_middleware_auth.py": {
+    "mtime": 1777995101.3675034,
+    "hash": "e5a0f44bef0b6cfd8dcd6605341abb78"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/test_routes_registered.py": {
+    "mtime": 1777989845.8341177,
+    "hash": "89ea438717e0891e6880d13ae40be516"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/services/__init__.py": {
+    "mtime": 1777989193.7310624,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/services/test_neptune_service.py": {
+    "mtime": 1777989257.0594301,
+    "hash": "bd5e61ea95605ec2df64b925099d634c"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/services/test_search_service.py": {
+    "mtime": 1778000139.1965659,
+    "hash": "7b606273b9b6e49c03cc7d6d7af60b54"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/services/test_bedrock_services.py": {
+    "mtime": 1777989384.4461172,
+    "hash": "3f931bce2fdc70cadeec9f5ba8987622"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/services/test_agent_service.py": {
+    "mtime": 1777989424.5350752,
+    "hash": "df31093af89bec8c6c7bfc3963b70301"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/services/test_compliance_engine.py": {
+    "mtime": 1778000175.825614,
+    "hash": "17f428b94bc6d693aefbf7f0c51982f0"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/services/test_eight_d_writer.py": {
+    "mtime": 1777989539.632083,
+    "hash": "d624d30a2c6a864747adfebfb01724c5"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/services/test_carbon_calc.py": {
+    "mtime": 1777989567.3913598,
+    "hash": "d5c5cf31bb32663292fa4f31d7f86c1c"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/services/test_lane_router.py": {
+    "mtime": 1778000179.0655298,
+    "hash": "9aa2c25c653296fdc2f77ce324ff2d98"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/services/test_rfm_scorer.py": {
+    "mtime": 1777989631.1196985,
+    "hash": "393faba0107ba2672627d2ef326283dd"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/routers/__init__.py": {
+    "mtime": 1777989738.006918,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/routers/test_search.py": {
+    "mtime": 1777989815.1949167,
+    "hash": "1fc5a42f99353c6e02870bef6c551861"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/routers/test_chat.py": {
+    "mtime": 1777989817.324861,
+    "hash": "a936df4859fa862ad3a11afa9619e3cc"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/routers/test_insights.py": {
+    "mtime": 1777989819.584802,
+    "hash": "409754f3b256540000f459a17a26d6a0"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/routers/test_spec_match.py": {
+    "mtime": 1777989823.9446878,
+    "hash": "ccc97cf6f16b485851169be6f32ec9fa"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/routers/test_compliance.py": {
+    "mtime": 1777989826.694616,
+    "hash": "44a3b0b23f8a6e194d9641f4643e803f"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/routers/test_substitute.py": {
+    "mtime": 1777989828.2145765,
+    "hash": "c25044e5452bbfa25e4612b1131e7366"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/routers/test_price_lane_rfm.py": {
+    "mtime": 1777989837.0343468,
+    "hash": "cf365ff37e64537e8a91a10dc60d3b2b"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/routers/test_eight_d_esg_pdm.py": {
+    "mtime": 1777989843.6041758,
+    "hash": "7f891345f44cd9c35f5711dc41ff06d7"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/tests/api/routers/test_auth.py": {
+    "mtime": 1778000158.516064,
+    "hash": "103f9636bfed7c8307ebfffbb432c77e"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/requirements-dev.txt": {
+    "mtime": 1777964734.9456575,
+    "hash": "9175b5583ccc52bf7d1c99eb4fb14bb5"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/requirements.txt": {
+    "mtime": 1777968436.7198622,
+    "hash": "d8381201712f37acf5448ae9da589914"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/README.md": {
+    "mtime": 1777964768.854783,
+    "hash": "37e8c5eebe9e756ca813785fee311e47"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/CLAUDE.md": {
+    "mtime": 1777964772.2946942,
+    "hash": "da35875c957b2b03c085069574db3228"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/SECURITY.md": {
+    "mtime": 1777964774.8546278,
+    "hash": "d34697c6da22307c61a34be509e2d1fc"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/CHANGELOG.md": {
+    "mtime": 1777964777.0845702,
+    "hash": "bbfa00dd05a2434389e63cbf203cfc76"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/docs/superpowers/specs/2026-05-05-ontology-mfg-hitech-design.md": {
+    "mtime": 1777962717.82781,
+    "hash": "8d6f6428eb8723a79cd09bef68e4987c"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/docs/superpowers/plans/2026-05-05-ontology-mfg-foundation.md": {
+    "mtime": 1777964403.1342354,
+    "hash": "c6e2aa4b080cd8b28b2ca7055f380359"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/docs/superpowers/plans/2026-05-05-ontology-mfg-application.md": {
+    "mtime": 1777984473.033795,
+    "hash": "779caa4ed33e96aba9a5483d4cfe8977"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/docs/superpowers/plans/2026-05-05-ontology-mfg-validation.md": {
+    "mtime": 1777984630.9797013,
+    "hash": "106a72eb8016b490eacbe8e97f892d84"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/docs/deploy-logs/foundation-deploy.txt": {
+    "mtime": 1777983360.3627663,
+    "hash": "5885a800e2f65ef3623364e8f0302c5b"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/docs/deploy-logs/task37-verification.txt": {
+    "mtime": 1777983656.2950594,
+    "hash": "33f1a5102a71d73fdc08a1f3d78fc300"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/docs/deploy-logs/data-load-execution.txt": {
+    "mtime": 1777988850.6799831,
+    "hash": "a8badce5af0a26c5145c2fa0c850a75a"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/docs/deploy-logs/api-deploy.txt": {
+    "mtime": 1777991015.8637116,
+    "hash": "83151e2e671ce1de0729e5606d3b0589"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/docs/deploy-logs/application-deploy.txt": {
+    "mtime": 1777993908.5485067,
+    "hash": "e364a387d701c177de7cfdc5696d84b0"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/docs/deploy-logs/auth-fix.txt": {
+    "mtime": 1777995363.5906906,
+    "hash": "94ceab84cbebb59d6f52c2c27bf5ed10"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/infra-cdk/test/__snapshots__/network-synth.yaml": {
+    "mtime": 1777968826.3197682,
+    "hash": "980ee073eb1dbcbee7690e78fea082f3"
+  },
+  "/home/ec2-user/my-project/ontology-for-mfg/api/requirements.txt": {
+    "mtime": 1777989164.1918302,
+    "hash": "a9bd0c78eea937fa7f23aefc20f57137"
+  }
+}
