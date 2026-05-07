@@ -1,13 +1,10 @@
 "use client";
-import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { api } from "@/lib/api-client";
+import { useRef, useState } from "react";
+import { eightDStream } from "@/lib/api-client";
 import { useActivePersona } from "@/lib/persona-context";
 import { MarkdownView } from "@/components/MarkdownView";
 import type { Persona } from "@/lib/types";
 import { ScenarioHeader } from "@/components/ScenarioHeader";
-
-interface EightDSection { section: string; title: string; content: string; }
 
 type Sample = { label: string; persona: Persona; incidentId: string };
 
@@ -33,55 +30,134 @@ const PERSONA_LABEL: Record<Persona, string> = {
   plant:    "Plant 생산",
 };
 
-const SECTION_LABELS: Record<string, string> = {
-  D1: "D1 — 팀 구성 (Team Formation)",
-  D2: "D2 — 문제 설명 (Problem Description)",
-  D3: "D3 — 긴급 조치 (Containment Action)",
-  D4: "D4 — 근본 원인 분석 (Root Cause Analysis)",
-  D5: "D5 — 영구 시정 조치 (Permanent Corrective Action)",
-  D6: "D6 — 시정 조치 실행 (Corrective Action Implementation)",
-  D7: "D7 — 재발 방지 (Recurrence Prevention)",
-  D8: "D8 — 팀 공로 인정 (Recognition)",
+// Phase chip palette mirrors the chat page so the UX feels consistent.
+const PHASE_META: Record<string, { label: string; tone: string }> = {
+  neptune: { label: "지식 그래프 조회",   tone: "border-sky-500/40    bg-sky-500/10    text-sky-200" },
+  kb:      { label: "KB 유사 사례 검색", tone: "border-violet-500/40 bg-violet-500/10 text-violet-200" },
+  bedrock: { label: "Sonnet 4.6 8D 작성", tone: "border-orange-500/40 bg-orange-500/10 text-orange-200" },
 };
+
+interface Phase {
+  name: string;
+  label: string;
+  detail?: string;
+  duration?: number;
+  done: boolean;
+}
 
 export default function EightDPage() {
   const { active, setActive } = useActivePersona();
   const [incidentId, setIncidentId] = useState("INC-2026-0412");
-  const [sections, setSections] = useState<EightDSection[]>([]);
-  const [open, setOpen] = useState<Set<string>>(new Set(["D1"]));
-  const [loading, setLoading] = useState(false);
+  const [phases, setPhases] = useState<Phase[]>([]);
+  const [markdown, setMarkdown] = useState<string>("");
+  const [streaming, setStreaming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fallback, setFallback] = useState(false);
+  const [synthetic, setSynthetic] = useState(false);
+  const [totalS, setTotalS] = useState<number | null>(null);
+  const cancelRef = useRef<(() => void) | null>(null);
 
-  async function runEightD(id?: string) {
-    const target = id ?? incidentId;
-    if (!target.trim()) return;
-    setLoading(true);
-    const r = (await api.eightD(target)) as { sections?: EightDSection[] };
-    setSections(r.sections ?? []);
-    setLoading(false);
+  function runEightD(id?: string) {
+    const target = (id ?? incidentId).trim();
+    if (!target || streaming) return;
+    setStreaming(true);
+    setError(null);
+    setFallback(false);
+    setSynthetic(false);
+    setMarkdown("");
+    setPhases([]);
+    setTotalS(null);
+
+    cancelRef.current = eightDStream(target, (event) => {
+      const ev = event as { type: string; [k: string]: unknown };
+
+      if (ev.type === "phase") {
+        const name = String(ev.phase ?? "");
+        const meta = PHASE_META[name] ?? { label: name, tone: "" };
+        setPhases((p) => [...p, {
+          name,
+          label: String(ev.label ?? meta.label),
+          done: false,
+        }]);
+      } else if (ev.type === "phase_done") {
+        const name = String(ev.phase ?? "");
+        const detail = ev.detail ? String(ev.detail) : undefined;
+        const duration = typeof ev.duration_s === "number" ? ev.duration_s : undefined;
+        setPhases((p) => {
+          const idx = p.findIndex((x) => x.name === name && !x.done);
+          if (idx < 0) return p;
+          const next = [...p];
+          next[idx] = { ...next[idx], detail, duration, done: true };
+          return next;
+        });
+      } else if (ev.type === "result") {
+        setMarkdown(String(ev.markdown ?? ""));
+        setFallback(Boolean(ev.fallback));
+        setSynthetic(Boolean(ev.synthetic));
+        if (typeof ev.total_s === "number") setTotalS(ev.total_s);
+      } else if (ev.type === "error") {
+        setError(String(ev.message ?? "알 수 없는 오류"));
+      } else if (ev.type === "stop") {
+        setStreaming(false);
+      }
+    });
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     runEightD();
   }
 
-  function toggle(sec: string) {
-    setOpen((prev) => {
-      const next = new Set(prev);
-      next.has(sec) ? next.delete(sec) : next.add(sec);
-      return next;
-    });
+  function copyMarkdown() {
+    if (!markdown) return;
+    navigator.clipboard?.writeText(markdown).catch(() => {});
+  }
+
+  function downloadMarkdown() {
+    if (!markdown) return;
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `8d-${incidentId}-${Date.now()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   return (
     <div className="min-h-screen flex flex-col">
-      <ScenarioHeader scenario="J" title="8D / RCA" tech="Cypher 인시던트 + KB 유사 사례 → Sonnet 4.6 tool-use 8단계 강제 → RootCause 그래프" wow={true} />
-      <div className="flex-1 p-6 max-w-3xl">
-        <h1 className="text-2xl font-bold text-ink-50 mb-1">8D 보고서 자동 생성</h1>
-        <p className="text-sm text-ink-400 mb-2">인시던트 ID 입력 → D1-D8 전체 보고서 자동 생성</p>
-        <p className="text-xs text-orange-300 mb-4">★ WOW: 15초 안에 8개 섹션 전체 8D 보고서가 완성됩니다</p>
+      <ScenarioHeader scenario="J" title="8D / RCA" tech="Cypher 인시던트 + KB 유사 사례 → Sonnet 4.6 tool-use 8단계 강제 → SSE 진행 스트림" />
+      <div className="flex-1 mx-auto max-w-4xl w-full px-6 py-6">
+        <div className="flex items-start justify-between gap-4 mb-1">
+          <h1 className="text-2xl font-bold text-ink-50">8D 보고서 자동 생성</h1>
+          {markdown && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={copyMarkdown}
+                className="text-xs px-3 py-1.5 rounded-md border border-ink-700 text-ink-300 hover:border-accent-500 hover:text-accent-300 transition"
+                title="Markdown 복사"
+              >
+                MD 복사
+              </button>
+              <button
+                type="button"
+                onClick={downloadMarkdown}
+                className="text-xs px-3 py-1.5 rounded-md border border-ink-700 text-ink-300 hover:border-accent-500 hover:text-accent-300 transition"
+                title="Markdown 다운로드"
+              >
+                MD 다운로드
+              </button>
+            </div>
+          )}
+        </div>
+        <p className="text-sm text-ink-400 mb-4">
+          인시던트 ID 입력 → Neptune·KB·Bedrock 단계가 SSE로 실시간 표시되고 결과는 Markdown으로 렌더링됩니다.
+        </p>
 
-        {sections.length === 0 && (
+        {!streaming && phases.length === 0 && (
           <div className="mb-5">
             <div className="text-xs uppercase tracking-wider text-ink-400 font-semibold mb-2">
               인시던트 선택 — 클릭하면 바로 생성됩니다
@@ -91,7 +167,7 @@ export default function EightDPage() {
                 <button
                   key={i}
                   type="button"
-                  disabled={loading}
+                  disabled={streaming}
                   onClick={() => { setActive(p.persona); setIncidentId(p.incidentId); runEightD(p.incidentId); }}
                   className="group flex items-start gap-2 text-left px-3 py-2.5 rounded-lg border border-ink-700 bg-ink-900 hover:border-accent-500/60 hover:bg-ink-800 transition disabled:opacity-50"
                 >
@@ -107,41 +183,84 @@ export default function EightDPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex gap-2 mb-6">
+        <form onSubmit={handleSubmit} className="flex gap-2 mb-4">
           <input
             className="flex-1 bg-ink-800 border border-ink-700 rounded-md px-3 py-2.5 text-sm text-ink-100 outline-none focus:border-accent-500 placeholder:text-ink-500"
             placeholder="인시던트 ID (예: INC-2026-0412)"
             value={incidentId}
             onChange={(e) => setIncidentId(e.target.value)}
+            disabled={streaming}
           />
           <button
             type="submit"
-            className="bg-accent-500 hover:bg-accent-400 text-ink-950 font-semibold px-4 py-2 rounded-md text-sm transition"
+            disabled={streaming}
+            className="bg-accent-500 hover:bg-accent-400 text-ink-950 font-semibold px-4 py-2 rounded-md text-sm transition disabled:opacity-50"
           >
-            {loading ? "생성 중..." : "생성"}
+            {streaming ? "생성 중…" : "생성"}
           </button>
         </form>
 
-        <div className="space-y-2">
-          {sections.map((s) => (
-            <div key={s.section} className="border border-ink-700 rounded-lg bg-ink-900 overflow-hidden">
-              <button
-                className="w-full flex justify-between items-center px-4 py-3 text-sm font-medium text-ink-100 hover:bg-ink-800 transition"
-                onClick={() => toggle(s.section)}
-              >
-                <span>{SECTION_LABELS[s.section] ?? s.section}</span>
-                {open.has(s.section)
-                  ? <ChevronUp className="w-4 h-4 text-ink-400" />
-                  : <ChevronDown className="w-4 h-4 text-ink-400" />}
-              </button>
-              {open.has(s.section) && (
-                <div className="px-4 pb-4 border-t border-ink-700 pt-3">
-                  <MarkdownView text={s.content} className="text-ink-300" />
-                </div>
-              )}
+        {/* Phase strip — chat-style live progress */}
+        {(streaming || phases.length > 0) && (
+          <div className="mb-4 rounded-lg border border-ink-700 bg-ink-900 p-3">
+            <div className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold mb-2 flex items-center gap-2">
+              <span className={`inline-block w-1.5 h-1.5 rounded-full ${streaming ? "bg-orange-500 animate-pulse-soft" : "bg-emerald-500"}`} />
+              {streaming ? `에이전트 진행 중 — ${phases.length}단계` : `완료 — ${totalS != null ? `${totalS.toFixed(1)}s` : ""}`}
             </div>
-          ))}
-        </div>
+            <ol className="flex flex-wrap items-center gap-2">
+              {phases.map((p, i) => {
+                const meta = PHASE_META[p.name] ?? { label: p.label, tone: "border-slate-500/40 bg-slate-500/10 text-slate-200" };
+                return (
+                  <li
+                    key={i}
+                    className={[
+                      "flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded border",
+                      meta.tone,
+                      p.done ? "" : "animate-pulse-soft",
+                    ].join(" ")}
+                  >
+                    <span className="text-[9px] opacity-60">{i + 1}.</span>
+                    <span className="font-semibold">{meta.label}</span>
+                    {p.done && p.duration != null && (
+                      <span className="opacity-70">— {p.duration.toFixed(1)}s</span>
+                    )}
+                    {p.done && p.detail && <span className="opacity-70">· {p.detail}</span>}
+                  </li>
+                );
+              })}
+              {streaming && (
+                <li className="text-[11px] font-mono px-2 py-1 rounded border border-ink-700 bg-ink-800/50 text-ink-400 animate-pulse-soft">
+                  다음 단계…
+                </li>
+              )}
+            </ol>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-4 px-3 py-2 rounded-md border border-rose-500/40 bg-rose-500/10 text-rose-200 text-xs flex items-start gap-2">
+            <span className="font-bold">⚠️ 오류</span>
+            <span className="flex-1">{error}</span>
+          </div>
+        )}
+
+        {fallback && markdown && (
+          <div className="mb-4 px-3 py-2 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs">
+            ⓘ Bedrock 응답 지연으로 결정론적 폴백 템플릿이 사용되었습니다 — 실제 LLM 결과가 아닙니다.
+          </div>
+        )}
+
+        {synthetic && !fallback && (
+          <div className="mb-4 px-3 py-2 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs">
+            ⓘ Neptune에 해당 인시던트가 없어 데모용 메타데이터로 진행되었습니다.
+          </div>
+        )}
+
+        {markdown && (
+          <article className="rounded-lg border border-ink-700 bg-ink-900 p-6">
+            <MarkdownView text={markdown} className="text-ink-200" />
+          </article>
+        )}
       </div>
     </div>
   );

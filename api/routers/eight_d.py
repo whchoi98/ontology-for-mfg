@@ -1,10 +1,12 @@
-# api/routers/eight_d.py — Scenario J
+# api/routers/eight_d.py — Scenario J (SSE stream)
 from __future__ import annotations
 import concurrent.futures
+import json
 import logging
 import time
 from fastapi import APIRouter, Body
 from pydantic import BaseModel
+from sse_starlette.sse import EventSourceResponse
 from api.services.neptune import get_neptune
 from api.services.eight_d_writer import draft_eight_d
 from api.services.kb import retrieve_kb
@@ -37,6 +39,17 @@ _FALLBACK_SECTIONS = [
     ("d8_closure",     "마감",            "Quality Director 승인 후 60일 검증 통과 시 closure. 학습 사례 공유."),
 ]
 
+_SECTION_HEADERS = [
+    ("D1", "팀 구성 (Team Formation)",            "d1_team"),
+    ("D2", "문제 설명 (Problem Description)",     "d2_problem"),
+    ("D3", "긴급 조치 (Containment Action)",       "d3_containment"),
+    ("D4", "근본 원인 분석 (Root Cause)",         "d4_root_cause"),
+    ("D5", "영구 시정 조치 (Corrective)",         "d5_corrective"),
+    ("D6", "시정 조치 실행 (Implemented)",         "d6_implemented"),
+    ("D7", "재발 방지 (Prevention)",               "d7_prevention"),
+    ("D8", "팀 공로 인정 (Closure)",               "d8_closure"),
+]
+
 
 def _fallback_draft(incident_title: str, reason: str) -> dict:
     """Return a deterministic 8D draft when Bedrock is unavailable, so the demo UI never blanks."""
@@ -46,94 +59,151 @@ def _fallback_draft(incident_title: str, reason: str) -> dict:
     }
 
 
-@router.post("/eight-d")
-def eight_d(req: EightDRequest = Body(...)) -> dict:
-    t0 = time.monotonic()
-    log.info("eight_d.start incident=%s", req.incident_id)
+def _assemble_markdown(inc: dict, draft: dict, *, similar_count: int,
+                        is_fallback: bool, total_s: float) -> str:
+    """Assemble the 8D report into a single Markdown document for client rendering."""
+    severity = inc.get("severity") or "—"
+    component = inc.get("component_id") or "—"
+    plant = inc.get("plant_id") or "—"
+    title = inc.get("title") or inc.get("id", "")
 
-    # ── Stage 1: Neptune lookup ──────────────────────────────────────────
-    t1 = time.monotonic()
-    try:
-        inc_rows = get_neptune().run_cypher(
-            "MATCH (i:QualityIncident {id: $id}) RETURN i.id AS id, i.title AS title, "
-            "i.component_id AS component_id, i.plant_id AS plant_id, i.severity AS severity",
-            {"id": req.incident_id},
-        )
-    except Exception as e:
-        log.warning("eight_d.neptune_failed dur=%.1fs err=%s", time.monotonic() - t1, e)
-        inc_rows = []
-    log.info("eight_d.neptune_done dur=%.1fs rows=%d", time.monotonic() - t1, len(inc_rows or []))
+    mode = ("결정론적 폴백 (Bedrock 응답 지연 >25s)" if is_fallback
+            else "Sonnet 4.6 tool-use 생성")
 
-    if inc_rows:
-        inc = inc_rows[0]
-    else:
-        # Synthesize incident metadata so demo can proceed
-        inc = {
-            "id": req.incident_id,
-            "title": "BGA solder ball crack on Innotek FC-BGA Gen5 (lot 2026-Q1-W04)",
-            "component_id": "AMZN-CMP-IC-00001",
-            "plant_id": "AMZN-PLANT-001",
-            "severity": "CRITICAL",
-            "_synthetic": True,
-        }
-
-    # ── Stage 2: KB retrieve ──────────────────────────────────────────────
-    t2 = time.monotonic()
-    try:
-        kb_rows = retrieve_kb(inc["title"], top_k=3)
-        similar = [r["content"]["text"] for r in kb_rows] if kb_rows else []
-    except Exception as e:
-        log.info("eight_d.kb_skipped dur=%.1fs err=%s", time.monotonic() - t2, e)
-        similar = []
-    log.info("eight_d.kb_done dur=%.1fs hits=%d", time.monotonic() - t2, len(similar))
-
-    # ── Stage 3: Bedrock 8D draft (defensive — fallback if model fails) ──
-    # Submitted on a worker thread + bounded by `_BEDROCK_BUDGET_S` so we
-    # always return within the upstream gateway timeout. If the call exceeds
-    # the budget we abandon the future (it keeps running but its result is
-    # ignored) and surface the deterministic fallback instead of a 504.
-    t3 = time.monotonic()
-    future = _BEDROCK_POOL.submit(
-        draft_eight_d,
-        incident_title=inc["title"],
-        incident_desc=inc.get("severity", ""),
-        similar_reports=similar,
-        standards=["JESD22", "AEC-Q100"],
-    )
-    try:
-        draft = future.result(timeout=_BEDROCK_BUDGET_S)
-        log.info("eight_d.bedrock_done dur=%.1fs keys=%d", time.monotonic() - t3, len(draft))
-    except concurrent.futures.TimeoutError:
-        log.warning("eight_d.bedrock_timeout dur=%.1fs budget=%.1fs — using fallback",
-                    time.monotonic() - t3, _BEDROCK_BUDGET_S)
-        draft = _fallback_draft(inc["title"], reason=f"Bedrock 응답 지연 (>{int(_BEDROCK_BUDGET_S)}s)")
-    except Exception as e:
-        log.warning("eight_d.bedrock_failed dur=%.1fs err=%s — using fallback",
-                    time.monotonic() - t3, e, exc_info=True)
-        draft = _fallback_draft(inc["title"], reason=f"Bedrock 호출 실패: {type(e).__name__}")
-
-    # Build both shapes for the frontend:
-    # - `eight_d` (dict, original shape)
-    # - `sections` (array, frontend expects { section, title, content })
-    SECTION_TITLES = [
-        ("D1", "팀 구성 (Team Formation)",            draft.get("d1_team", "")),
-        ("D2", "문제 설명 (Problem Description)",     draft.get("d2_problem", "")),
-        ("D3", "긴급 조치 (Containment Action)",       draft.get("d3_containment", "")),
-        ("D4", "근본 원인 분석 (Root Cause)",         draft.get("d4_root_cause", "")),
-        ("D5", "영구 시정 조치 (Corrective)",         draft.get("d5_corrective", "")),
-        ("D6", "시정 조치 실행 (Implemented)",         draft.get("d6_implemented", "")),
-        ("D7", "재발 방지 (Prevention)",               draft.get("d7_prevention", "")),
-        ("D8", "팀 공로 인정 (Closure)",               draft.get("d8_closure", "")),
+    lines = [
+        f"# 8D Report — `{inc.get('id', '')}`",
+        "",
+        f"> **인시던트**: {title}  ",
+        f"> **심각도**: `{severity}` · **부품**: `{component}` · **공장**: `{plant}`  ",
+        f"> **유사 사례**: {similar_count}건 · **생성 모드**: {mode} · **총 소요**: {total_s:.1f}s",
+        "",
+        "---",
+        "",
     ]
-    sections = [{"section": s, "title": t, "content": c} for s, t, c in SECTION_TITLES]
+    for code, title_ko, key in _SECTION_HEADERS:
+        body = (draft.get(key) or "").strip()
+        lines.append(f"## {code} — {title_ko}")
+        lines.append("")
+        lines.append(body if body else "_(생성된 내용 없음)_")
+        lines.append("")
+    return "\n".join(lines)
 
-    is_fallback = all(v.startswith("[") for v in draft.values()) if draft else False
-    log.info("eight_d.end incident=%s total=%.1fs fallback=%s",
-             req.incident_id, time.monotonic() - t0, is_fallback)
-    return {
-        "incident": inc,
-        "eight_d": draft,
-        "sections": sections,
-        "similar_count": len(similar),
-        "_fallback": is_fallback,
-    }
+
+def _sse_event(payload: dict) -> dict:
+    """Wrap a JSON payload as an SSE event with a stable event-name."""
+    return {"event": payload.get("type", "message"), "data": json.dumps(payload, ensure_ascii=False)}
+
+
+@router.post("/eight-d")
+def eight_d(req: EightDRequest = Body(...)):
+    """SSE stream of the 8D pipeline so the UI can render phase chips in real-time."""
+
+    def gen():
+        t0 = time.monotonic()
+        log.info("eight_d.start incident=%s", req.incident_id)
+
+        # ── Phase 1: Neptune lookup ──────────────────────────────────────────
+        yield _sse_event({"type": "phase", "phase": "neptune",
+                           "label": "지식 그래프 조회"})
+        t1 = time.monotonic()
+        try:
+            inc_rows = get_neptune().run_cypher(
+                "MATCH (i:QualityIncident {id: $id}) RETURN i.id AS id, i.title AS title, "
+                "i.component_id AS component_id, i.plant_id AS plant_id, i.severity AS severity",
+                {"id": req.incident_id},
+            )
+        except Exception as e:
+            log.warning("eight_d.neptune_failed dur=%.1fs err=%s", time.monotonic() - t1, e)
+            inc_rows = []
+        dur1 = time.monotonic() - t1
+        log.info("eight_d.neptune_done dur=%.1fs rows=%d", dur1, len(inc_rows or []))
+        yield _sse_event({"type": "phase_done", "phase": "neptune",
+                           "duration_s": round(dur1, 1),
+                           "detail": f"{len(inc_rows or [])} rows"})
+
+        if inc_rows:
+            inc = inc_rows[0]
+        else:
+            inc = {
+                "id": req.incident_id,
+                "title": "BGA solder ball crack on Innotek FC-BGA Gen5 (lot 2026-Q1-W04)",
+                "component_id": "AMZN-CMP-IC-00001",
+                "plant_id": "AMZN-PLANT-001",
+                "severity": "CRITICAL",
+                "_synthetic": True,
+            }
+
+        # ── Phase 2: KB retrieve ──────────────────────────────────────────────
+        yield _sse_event({"type": "phase", "phase": "kb",
+                           "label": "유사 사례 KB 검색"})
+        t2 = time.monotonic()
+        try:
+            kb_rows = retrieve_kb(inc["title"], top_k=3)
+            similar = [r["content"]["text"] for r in kb_rows] if kb_rows else []
+        except Exception as e:
+            log.info("eight_d.kb_skipped dur=%.1fs err=%s", time.monotonic() - t2, e)
+            similar = []
+        dur2 = time.monotonic() - t2
+        log.info("eight_d.kb_done dur=%.1fs hits=%d", dur2, len(similar))
+        yield _sse_event({"type": "phase_done", "phase": "kb",
+                           "duration_s": round(dur2, 1),
+                           "detail": f"{len(similar)} hits"})
+
+        # ── Phase 3: Bedrock 8D draft (with 25s timeout safety net) ──────────
+        yield _sse_event({"type": "phase", "phase": "bedrock",
+                           "label": "Sonnet 4.6 8D 작성"})
+        t3 = time.monotonic()
+        future = _BEDROCK_POOL.submit(
+            draft_eight_d,
+            incident_title=inc["title"],
+            incident_desc=inc.get("severity", ""),
+            similar_reports=similar,
+            standards=["JESD22", "AEC-Q100"],
+        )
+        bedrock_detail = ""
+        try:
+            draft = future.result(timeout=_BEDROCK_BUDGET_S)
+            bedrock_detail = f"{len(draft)} sections"
+            log.info("eight_d.bedrock_done dur=%.1fs keys=%d", time.monotonic() - t3, len(draft))
+        except concurrent.futures.TimeoutError:
+            dur3 = time.monotonic() - t3
+            log.warning("eight_d.bedrock_timeout dur=%.1fs budget=%.1fs — using fallback",
+                        dur3, _BEDROCK_BUDGET_S)
+            draft = _fallback_draft(inc["title"], reason=f"Bedrock 응답 지연 (>{int(_BEDROCK_BUDGET_S)}s)")
+            bedrock_detail = f"timeout {int(_BEDROCK_BUDGET_S)}s — fallback"
+        except Exception as e:
+            log.warning("eight_d.bedrock_failed dur=%.1fs err=%s — using fallback",
+                        time.monotonic() - t3, e, exc_info=True)
+            draft = _fallback_draft(inc["title"], reason=f"Bedrock 호출 실패: {type(e).__name__}")
+            bedrock_detail = f"error: {type(e).__name__}"
+        dur3 = time.monotonic() - t3
+        yield _sse_event({"type": "phase_done", "phase": "bedrock",
+                           "duration_s": round(dur3, 1), "detail": bedrock_detail})
+
+        # ── Result (sections + assembled markdown) ───────────────────────────
+        sections = [
+            {"section": code, "title": title_ko, "content": draft.get(key, "")}
+            for code, title_ko, key in _SECTION_HEADERS
+        ]
+        is_fallback = all(v.startswith("[") for v in draft.values()) if draft else False
+        total_s = time.monotonic() - t0
+        markdown = _assemble_markdown(
+            inc, draft, similar_count=len(similar),
+            is_fallback=is_fallback, total_s=total_s,
+        )
+        log.info("eight_d.end incident=%s total=%.1fs fallback=%s",
+                 req.incident_id, total_s, is_fallback)
+
+        yield _sse_event({
+            "type": "result",
+            "incident": inc,
+            "sections": sections,
+            "markdown": markdown,
+            "similar_count": len(similar),
+            "fallback": is_fallback,
+            "synthetic": bool(inc.get("_synthetic")),
+            "total_s": round(total_s, 1),
+        })
+        yield _sse_event({"type": "stop", "reason": "ok"})
+
+    return EventSourceResponse(gen())
