@@ -95,7 +95,7 @@ export default function InsightsPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <ScenarioHeader scenario="C" title="인사이트" tech="Neptune 집계 + Sonnet 4.6 분석 (마크다운 스트리밍) + Code Interpreter 차트 + Cytoscape 드릴다운" />
-      <div className="flex-1 p-6 max-w-4xl">
+      <div className="flex-1 mx-auto w-full max-w-4xl px-6 py-6">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">인사이트</h1>
         <p className="text-sm text-ink-400 mb-4">Neptune 집계 + Sonnet 4.6 스트리밍 + Code Interpreter 차트</p>
 

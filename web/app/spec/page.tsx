@@ -58,7 +58,7 @@ export default function SpecPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <ScenarioHeader scenario="D" title="스펙 매치" tech="자연어 요구사항 → BM25 + Cohere KNN 하이브리드 + Bedrock Reranker → 후보 매칭 + 인증/리드타임 비교" />
-      <div className="flex-1 p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="flex-1 mx-auto w-full max-w-7xl px-6 py-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div>
           <h1 className="text-2xl font-bold text-ink-50 mb-1">부품 규격 매칭</h1>
           <p className="text-sm text-ink-400 mb-4">자연어 요구사항 → 후보 부품 + 표준 커버리지 그래프</p>

@@ -56,7 +56,7 @@ export default function CompliancePage() {
   return (
     <div className="min-h-screen flex flex-col">
       <ScenarioHeader scenario="E" title="규제 준수 검사" tech="Cypher 부품 조회 → REACH-SVHC + RoHS 6+4 + AEC-Q100/200 결정론적 검증 엔진" />
-      <div className="flex-1 p-6 max-w-2xl">
+      <div className="flex-1 mx-auto w-full max-w-4xl px-6 py-6">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">규제 준수 검사</h1>
         <p className="text-sm text-ink-400 mb-4">REACH SVHC / RoHS / PFAS / AEC-Q 준수 여부 즉시 확인</p>
 

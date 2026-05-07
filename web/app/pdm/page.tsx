@@ -27,7 +27,7 @@ export default function PdmPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <ScenarioHeader scenario="L" title="PdM / IoT" tech="OpenSearch Telemetry + 임계 비교 → 알람 분류 + 정비 권고" />
-      <div className="flex-1 p-6 max-w-4xl">
+      <div className="flex-1 mx-auto w-full max-w-4xl px-6 py-6">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">예지 보전 / IoT</h1>
         <p className="text-sm text-ink-400 mb-4">공장 IoT 텔레메트리 + 예지 보전 알람 + 정비 이벤트 추천</p>
         <form onSubmit={submit} className="flex gap-2 mb-6">

@@ -31,7 +31,7 @@ export default function EsgPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <ScenarioHeader scenario="K" title="ESG / CBAM" tech="Cypher Plant·CarbonScope → Scope 1/2/3 합산 + CBAM 환산 (K-ETS 매핑)" />
-      <div className="flex-1 p-6 max-w-3xl">
+      <div className="flex-1 mx-auto w-full max-w-4xl px-6 py-6">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">탄소 배출 / ESG</h1>
         <p className="text-sm text-ink-400 mb-4">Scope 1/2/3 배출량 + EU CBAM 2026 부담금 + IRA 적격 여부</p>
         <form onSubmit={submit} className="flex gap-2 mb-6">

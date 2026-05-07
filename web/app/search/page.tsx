@@ -79,9 +79,9 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <ScenarioHeader scenario="A" title="의미 검색" tech="자연어 → BM25 (Nori 한글) + Cohere KNN 하이브리드 + RRF fusion + Bedrock Reranker → Neptune 1-hop 그래프" wow={true} />
+      <ScenarioHeader scenario="A" title="의미 검색" tech="자연어 → BM25 (Nori 한글) + Cohere KNN 하이브리드 + RRF fusion + Bedrock Reranker → Neptune 1-hop 그래프" />
 
-      <div className="flex-1 p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="flex-1 mx-auto w-full max-w-7xl px-6 py-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div>
           <h1 className="text-2xl font-bold text-ink-50 mb-1">의미 검색</h1>
           <p className="text-sm text-ink-400 mb-4">자연어 → BM25 + Cohere KNN 하이브리드 + Bedrock Reranker → 1-hop 그래프</p>

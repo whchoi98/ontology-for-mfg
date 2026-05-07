@@ -51,7 +51,7 @@ export default function RfmPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <ScenarioHeader scenario="I" title="협력사 RFM" tech="Cypher Supplier RFM 정규화 → 합성 점수 (R×F×M geometric mean) + 점수 색상 분류" />
-      <div className="flex-1 p-6 max-w-4xl">
+      <div className="flex-1 mx-auto w-full max-w-4xl px-6 py-6">
         <h1 className="text-2xl font-bold text-ink-50 mb-1">협력사 RFM 분석</h1>
         <p className="text-sm text-ink-400 mb-4">Recency·Frequency·Monetary 기반 협력사 등급 분석</p>
         <form onSubmit={submit} className="flex gap-2 mb-6">
