@@ -125,23 +125,50 @@ def patch_graph_json(labels: dict[int, str]) -> None:
 
 def patch_graph_html(labels: dict[int, str]) -> None:
     text = PUBLIC_GRAPH_HTML.read_text()
-    # Each node has `"community_name": "Community N"` — replace using a lookup.
-    pat = re.compile(r'"community_name": "Community (\d+)"')
-    replaced = 0
+    # Two surfaces in graph.html reference community names:
+    #   1. RAW_NODES — `"community_name": "Community N"` (node tooltip).
+    #   2. LEGEND    — `{"cid": N, ..., "label": "Community N", ...}` powers
+    #                  the left sidebar community list. Without this patch the
+    #                  menu still shows "Community 0", "Community 1", ...
+    #
+    # The LEGEND regex anchors on `"cid": N` to ensure we only touch entries
+    # whose label exactly matches `Community N` (skipping anything custom).
+    pat_node = re.compile(r'"community_name": "Community (\d+)"')
+    pat_legend = re.compile(
+        r'\{"cid": (\d+), "color": "([^"]+)", "label": "Community \1", "count": (\d+)\}'
+    )
 
-    def _sub(m: re.Match[str]) -> str:
-        nonlocal replaced
+    node_replaced = 0
+    legend_replaced = 0
+
+    def _sub_node(m: re.Match[str]) -> str:
+        nonlocal node_replaced
         cid = int(m.group(1))
         name = labels.get(cid)
         if not name:
             return m.group(0)
-        replaced += 1
-        # JSON-escape the replacement.
+        node_replaced += 1
         return f'"community_name": {json.dumps(name, ensure_ascii=False)}'
 
-    new = pat.sub(_sub, text)
+    def _sub_legend(m: re.Match[str]) -> str:
+        nonlocal legend_replaced
+        cid = int(m.group(1))
+        color = m.group(2)
+        count = m.group(3)
+        name = labels.get(cid, f"Community {cid}")
+        legend_replaced += 1
+        return (
+            f'{{"cid": {cid}, "color": "{color}", '
+            f'"label": {json.dumps(name, ensure_ascii=False)}, "count": {count}}}'
+        )
+
+    new = pat_node.sub(_sub_node, text)
+    new = pat_legend.sub(_sub_legend, new)
     PUBLIC_GRAPH_HTML.write_text(new)
-    LOG.info("patched %s — %d replacements", PUBLIC_GRAPH_HTML.relative_to(ROOT), replaced)
+    LOG.info(
+        "patched %s — %d node tooltips + %d legend entries",
+        PUBLIC_GRAPH_HTML.relative_to(ROOT), node_replaced, legend_replaced,
+    )
 
 
 def patch_report_md(labels: dict[int, str]) -> None:
