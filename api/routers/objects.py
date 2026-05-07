@@ -18,6 +18,7 @@ from datetime import date, timedelta
 from typing import Any
 from collections import Counter
 from fastapi import APIRouter, HTTPException, Path, Query
+from api.services.neptune import get_neptune
 
 log = logging.getLogger("mfg.objects")
 
@@ -428,43 +429,83 @@ def _build_subgraph_for_id(label: str, obj_id: str) -> tuple[dict, dict[str, int
             {"id": obj_id},
         )
         if rows:
-            anchor_added = False
+            # Map Neptune internal ~id → application id we expose to the UI.
+            # `~start`/`~end` on relationships reference Neptune's internal node
+            # identifiers, NOT the application's `id` property — without this
+            # translation Cytoscape receives edges whose source/target don't
+            # match any node and throws synchronously, surfacing as a
+            # client-side exception in the browser.
+            nep_to_app: dict[str, str] = {}
+
+            def _register(node: Any, fallback_label: str) -> tuple[str, str] | None:
+                """Add a node to the result and remember its Neptune→app mapping."""
+                if not isinstance(node, dict):
+                    return None
+                flat = _flatten_node(node)
+                app_id = (
+                    flat.get("id")
+                    or flat.get("cas_id")
+                    or node.get("~id")
+                    or "?"
+                )
+                node_label = (node.get("~labels") or [fallback_label])[0]
+                nep_id = node.get("~id")
+                if nep_id:
+                    nep_to_app[nep_id] = app_id
+                return app_id, node_label
+
             seen_node_ids: set[str] = set()
             seen_edge_ids: set[str] = set()
+            anchor_added = False
+            pending_edges: list[tuple[str, str, str, str]] = []  # (rel_id, src_nep, dst_nep, type)
+
             for row in rows:
                 n_node = row.get("n")
                 m_node = row.get("m")
                 rel = row.get("r")
-                # Anchor
+
                 if not anchor_added and n_node:
-                    nflat = _flatten_node(n_node)
-                    nodes.append({
-                        "data": {"id": nflat.get("id", obj_id), "label": label,
-                                  "name_ko": nflat.get("name", obj_id),
-                                  "name": nflat.get("name", obj_id)}
-                    })
-                    seen_node_ids.add(nflat.get("id", obj_id))
-                    anchor_added = True
-                if m_node:
-                    mflat = _flatten_node(m_node)
-                    mid = mflat.get("id") or mflat.get("cas_id") or "?"
-                    mlabel = (m_node.get("~labels") or [label])[0] if isinstance(m_node, dict) else label
-                    if mid not in seen_node_ids:
+                    res = _register(n_node, label)
+                    if res:
+                        aid, _ = res
                         nodes.append({
-                            "data": {"id": mid, "label": mlabel,
-                                      "name_ko": mflat.get("name", mid),
-                                      "name": mflat.get("name", mid)}
+                            "data": {"id": aid, "label": label,
+                                      "name_ko": _flatten_node(n_node).get("name", aid),
+                                      "name": _flatten_node(n_node).get("name", aid)}
                         })
-                        seen_node_ids.add(mid)
-                        neighbor_counts[mlabel] += 1
+                        seen_node_ids.add(aid)
+                        anchor_added = True
+
+                if m_node:
+                    res = _register(m_node, label)
+                    if res:
+                        mid, mlabel = res
+                        if mid not in seen_node_ids:
+                            mflat = _flatten_node(m_node)
+                            nodes.append({
+                                "data": {"id": mid, "label": mlabel,
+                                          "name_ko": mflat.get("name", mid),
+                                          "name": mflat.get("name", mid)}
+                            })
+                            seen_node_ids.add(mid)
+                            neighbor_counts[mlabel] += 1
+
                 if rel and isinstance(rel, dict):
-                    rel_id = rel.get("~id", f"e_{len(edges)}")
+                    rel_id = rel.get("~id") or f"e_{len(pending_edges)}"
                     rel_type = rel.get("~type", "REL")
-                    src = rel.get("~start") or obj_id
-                    dst = rel.get("~end") or "?"
+                    src_nep = rel.get("~start") or ""
+                    dst_nep = rel.get("~end") or ""
                     if rel_id not in seen_edge_ids:
-                        edges.append({"data": {"id": rel_id, "source": src, "target": dst, "type": rel_type}})
+                        pending_edges.append((str(rel_id), str(src_nep), str(dst_nep), str(rel_type)))
                         seen_edge_ids.add(rel_id)
+
+            # Resolve edge endpoints against the Neptune→app map; drop any whose
+            # endpoints we couldn't map back to a node we exposed.
+            for rel_id, src_nep, dst_nep, rel_type in pending_edges:
+                src = nep_to_app.get(src_nep, src_nep)
+                dst = nep_to_app.get(dst_nep, dst_nep)
+                if src in seen_node_ids and dst in seen_node_ids:
+                    edges.append({"data": {"id": rel_id, "source": src, "target": dst, "type": rel_type}})
     except Exception as e:
         log.warning("Neptune subgraph for %s/%s failed: %s", label, obj_id, e)
 

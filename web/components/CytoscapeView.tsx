@@ -7,34 +7,67 @@ import type { CytoscapeGraph } from "@/lib/types";
 
 interface Props {
   graph: CytoscapeGraph;
-  wowNodeIds?: string[];
+  /** Node IDs to highlight as the user-selected/anchor node (orange ring + size boost). */
+  anchorIds?: string[];
   onNodeTap?: (nodeId: string, nodeLabel: string) => void;
   height?: number | string;
 }
 
-export function CytoscapeView({ graph, wowNodeIds = [], onNodeTap, height = 480 }: Props) {
+export function CytoscapeView({ graph, anchorIds = [], onNodeTap, height = 480 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<{ id: string; data: Record<string, unknown> } | null>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
+
+  // Stable ref for the tap callback so the cytoscape effect doesn't reinitialize
+  // every render (parent components recreate the function on each render).
+  const onNodeTapRef = useRef(onNodeTap);
+  onNodeTapRef.current = onNodeTap;
 
   useEffect(() => {
     if (!ref.current) return;
-    // Preprocess nodes — ensure every node has `name_ko` populated for the label
-    // (fallback chain: name_ko → name → title → id last 8 chars)
-    const enrichedNodes = (graph.nodes ?? []).map((n) => {
+    setRenderError(null);
+
+    // Preprocess nodes — ensure every node has `name_ko` populated for the label,
+    // and dedupe by id so cytoscape doesn't throw on duplicates from upstream.
+    const seenNodeIds = new Set<string>();
+    const enrichedNodes: { data: Record<string, unknown> }[] = [];
+    for (const n of graph.nodes ?? []) {
       const d = (n.data ?? {}) as Record<string, unknown>;
       const id = String(d.id ?? "");
+      if (!id || seenNodeIds.has(id)) continue;
+      seenNodeIds.add(id);
       const fallbackName =
         (d.name_ko as string) ||
         (d.name as string) ||
         (d.title as string) ||
         (id.length > 8 ? `${(d.label as string) || ""} ${id.slice(-8)}` : id);
-      return { data: { ...d, name_ko: fallbackName } };
-    });
+      enrichedNodes.push({ data: { ...d, name_ko: fallbackName } });
+    }
+
+    // Drop edges whose source or target isn't in the node set — Cytoscape throws
+    // synchronously on dangling refs, which manifested as the Next.js
+    // "Application error: a client-side exception" overlay.
+    const seenEdgeIds = new Set<string>();
+    const validEdges: { data: Record<string, unknown> }[] = [];
+    for (const e of graph.edges ?? []) {
+      const d = (e.data ?? {}) as Record<string, unknown>;
+      const eid = String(d.id ?? "");
+      const src = String(d.source ?? "");
+      const tgt = String(d.target ?? "");
+      if (!src || !tgt || !seenNodeIds.has(src) || !seenNodeIds.has(tgt)) continue;
+      if (eid && seenEdgeIds.has(eid)) continue;
+      if (eid) seenEdgeIds.add(eid);
+      validEdges.push({ data: d });
+    }
+
     const elements: ElementsDefinition = {
       nodes: enrichedNodes as ElementsDefinition["nodes"],
-      edges: graph.edges as ElementsDefinition["edges"],
+      edges: validEdges as ElementsDefinition["edges"],
     };
-    const cy = cytoscape({
+
+    let cy: cytoscape.Core;
+    try {
+      cy = cytoscape({
       container: ref.current,
       elements,
       style: [
@@ -92,9 +125,9 @@ export function CytoscapeView({ graph, wowNodeIds = [], onNodeTap, height = 480 
         { selector: 'node[label = "MaintenanceEvent"]', style: { "background-color": "#93c5fd", shape: "round-rectangle" } },
         { selector: 'node[label = "ESGIndicator"]',     style: { "background-color": "#86efac", shape: "ellipse" } },
         { selector: 'node[label = "CarbonScope"]',      style: { "background-color": "#a5b4fc", shape: "octagon" } },
-        // Wow highlighting (anchor node from list selection)
+        // Anchor highlighting (the user-selected node from list selection)
         {
-          selector: "node.wow",
+          selector: "node.anchor",
           style: {
             "border-color": "#ff6b35",
             "border-width": 4,
@@ -108,8 +141,17 @@ export function CytoscapeView({ graph, wowNodeIds = [], onNodeTap, height = 480 
           style: { "border-width": 3, "border-color": "#fb923c", "border-opacity": 1 },
         },
       ],
-      layout: { name: "concentric", animate: false, minNodeSpacing: 16 },
-    });
+        layout: { name: "concentric", animate: false, minNodeSpacing: 16 },
+      });
+    } catch (err) {
+      // Last-resort guard — even after dedup/dangling-edge filtering, malformed
+      // styles or container state could throw. Surface a readable message
+      // instead of letting Next.js render the global error overlay.
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("CytoscapeView: cytoscape() threw —", err);
+      setRenderError(msg);
+      return;
+    }
 
     // Fit to viewport with padding so graphs always render at a sensible size,
     // regardless of node count (5 nodes vs 50 nodes).
@@ -120,11 +162,10 @@ export function CytoscapeView({ graph, wowNodeIds = [], onNodeTap, height = 480 
       cy.center();
     });
 
-    // Apply wow class to anchor nodes
-    if (wowNodeIds.length > 0) {
-      wowNodeIds.forEach((nid) => {
+    if (anchorIds.length > 0) {
+      anchorIds.forEach((nid) => {
         const n = cy.getElementById(nid);
-        if (n.length) n.addClass("wow");
+        if (n.length) n.addClass("anchor");
       });
     }
 
@@ -132,9 +173,8 @@ export function CytoscapeView({ graph, wowNodeIds = [], onNodeTap, height = 480 
       const node = evt.target as NodeSingular;
       const data = node.data() as Record<string, unknown>;
       setSelected({ id: String(data.id ?? ""), data });
-      if (onNodeTap) {
-        onNodeTap(String(data.id ?? ""), String(data.label ?? ""));
-      }
+      const cb = onNodeTapRef.current;
+      if (cb) cb(String(data.id ?? ""), String(data.label ?? ""));
     });
 
     cy.on("tap", (evt) => {
@@ -142,7 +182,10 @@ export function CytoscapeView({ graph, wowNodeIds = [], onNodeTap, height = 480 
     });
 
     return () => cy.destroy();
-  }, [graph, wowNodeIds, onNodeTap]);
+    // `onNodeTap` intentionally omitted — accessed via onNodeTapRef so the
+    // cytoscape instance isn't torn down on every parent re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graph, anchorIds]);
 
   return (
     <div className="relative w-full h-full">
@@ -151,6 +194,11 @@ export function CytoscapeView({ graph, wowNodeIds = [], onNodeTap, height = 480 
         className="w-full border border-ink-700 rounded-lg bg-ink-950"
         style={{ height: typeof height === "number" ? `${height}px` : height, minHeight: 400 }}
       />
+      {renderError && (
+        <div className="absolute inset-2 flex items-center justify-center px-4 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs text-center">
+          그래프 렌더링 실패 — {renderError}
+        </div>
+      )}
       {selected && (
         <div className="absolute top-2 right-2 w-72 bg-ink-900 border border-ink-700 rounded-lg shadow-xl p-4 z-10">
           <div className="flex items-start justify-between mb-2">
