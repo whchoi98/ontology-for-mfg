@@ -9,11 +9,41 @@ Tool callback signature: (name: str, args: dict) -> dict (any JSON-serializable)
 """
 from __future__ import annotations
 import logging
-from typing import Callable, Generator
+import time
+from collections import deque
+from typing import Any, Callable, Generator
 from api.aws_clients import bedrock_runtime
 from api.config import settings
 
 log = logging.getLogger("mfg.agent")
+
+# In-process ring buffer of recent tool_call events. Powers /api/ops/trace.
+# Per-instance (not shared across ECS tasks) — adequate for the demo's
+# diagnostic console; would need a backing store (DynamoDB/CloudWatch) for
+# durable cross-instance traces.
+_TRACE_MAX = 200
+_TRACE_BUFFER: deque[dict] = deque(maxlen=_TRACE_MAX)
+
+
+def record_trace(*, session_id: str, tool: str, args: dict,
+                  actor_id: str = "anonymous") -> None:
+    """Append a tool-call event to the in-process trace ring."""
+    _TRACE_BUFFER.append({
+        "ts": time.time(),
+        "session_id": str(session_id or ""),
+        "actor_id": str(actor_id or "anonymous"),
+        "tool": str(tool or ""),
+        "input": args if isinstance(args, dict) else {"_": args},
+    })
+
+
+def recent_traces(limit: int = 50, session_id: str | None = None) -> list[dict]:
+    """Return the most recent traces, newest first, optionally filtered."""
+    items = list(_TRACE_BUFFER)
+    if session_id:
+        items = [it for it in items if it.get("session_id") == session_id]
+    items.sort(key=lambda x: x.get("ts", 0), reverse=True)
+    return items[: max(1, min(int(limit), _TRACE_MAX))]
 
 
 class AgentRunner:
@@ -107,6 +137,7 @@ class AgentRunner:
                     name = tu["name"]
                     args = tu.get("input", {})
                     tool_id = tu["toolUseId"]
+                    record_trace(session_id=session_id, tool=name, args=args)
                     yield {"type": "tool_call", "name": name, "args": args}
                     # Lookup fn — tool tuples may be 3 or 4 elements
                     fn = next((t[2] for t in self.tools if t[0] == name), None)

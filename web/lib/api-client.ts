@@ -81,6 +81,79 @@ export async function getOpsTrace(limit = 50) {
   }
 }
 
+// ─── Ops console (typed surface for /ops/[area] page) ────────────────────────
+
+export type IngestStatus = {
+  neptune: Record<string, number>;
+  opensearch_docs: number;
+  opensearch_index: string;
+};
+
+export type GuardrailEvent = { timestamp: number; message: string };
+export type GuardrailTopic = { name: string; ko: string; definition: string };
+export type GuardrailResponse = {
+  events: GuardrailEvent[];
+  bedrock_guardrail_id: string;
+  topics: GuardrailTopic[];
+};
+
+export type MemoryEvent = {
+  actor_id?: string | null;
+  role?: string | null;
+  text?: string | null;
+  event_timestamp?: string | null;
+  raw?: Record<string, unknown>;
+};
+export type MemorySnapshot = {
+  memory_id: string;
+  session_id?: string | null;
+  events: MemoryEvent[];
+};
+
+export type EvalRow = {
+  q: string;
+  keywords: string[];
+  hit_count: number;
+  passed: boolean;
+  latency_ms: number;
+  error?: string | null;
+};
+export type EvalResponse = {
+  pass_rate: number;
+  passes: number;
+  total: number;
+  avg_latency_ms: number;
+  cached_at_unix: number;
+  rows: EvalRow[];
+};
+
+export type TraceEvent = {
+  ts: number;
+  session_id: string;
+  actor_id: string;
+  tool: string;
+  input: Record<string, unknown>;
+};
+export type TraceResponse = { events: TraceEvent[]; total: number };
+
+export const opsIngest = () => getJson<IngestStatus>(`/ops/ingest`);
+export const opsGuardrail = (minutes = 60, limit = 40) =>
+  getJson<GuardrailResponse>(`/ops/guardrail?minutes=${minutes}&limit=${limit}`);
+export const opsMemory = (sessionId?: string, topK = 30) => {
+  const qp = sessionId
+    ? `?session_id=${encodeURIComponent(sessionId)}&top_k=${topK}`
+    : `?top_k=${topK}`;
+  return getJson<MemorySnapshot>(`/ops/memory${qp}`);
+};
+export const opsEval = (run = false) =>
+  getJson<EvalResponse>(`/ops/eval?run=${run}`);
+export const opsTrace = (limit = 50, sessionId?: string) => {
+  const qp = sessionId
+    ? `?limit=${limit}&session_id=${encodeURIComponent(sessionId)}`
+    : `?limit=${limit}`;
+  return getJson<TraceResponse>(`/ops/trace${qp}`);
+};
+
 /** Generic SSE streamer reused by /chat and /eight-d. */
 function sseStream(
   path: string,
