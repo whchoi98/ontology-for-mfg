@@ -14,20 +14,19 @@ type Scenario = {
   desc: string;
   color: 'blue' | 'emerald' | 'amber' | 'violet' | 'rose' | 'cyan' | 'sky' | 'teal' | 'orange' | 'fuchsia' | 'yellow' | 'lime' | 'pink';
   icon: React.ComponentType<{ className?: string }>;
-  wow?: boolean;
 };
 
 const SCENARIOS: Scenario[] = [
-  { href: '/search',     tag: 'A', title: '의미 검색',       desc: '자연어 → BM25 + Cohere KNN 하이브리드 + Reranker → 1-hop 그래프 시각화.',                    color: 'blue',    icon: Search,        wow: true },
-  { href: '/chat',       tag: 'B', title: '대화형 에이전트',  desc: 'Bedrock Converse + AgentCore Memory + Guardrails 4-topic + 4개 도구 호출 SSE 스트리밍.',  color: 'emerald', icon: MessageSquare, wow: true },
+  { href: '/search',     tag: 'A', title: '의미 검색',       desc: '자연어 → BM25 + Cohere KNN 하이브리드 + Reranker → 1-hop 그래프 시각화.',                    color: 'blue',    icon: Search },
+  { href: '/chat',       tag: 'B', title: '대화형 에이전트',  desc: 'Bedrock Converse + AgentCore Memory + Guardrails 4-topic + 4개 도구 호출 SSE 스트리밍.',  color: 'emerald', icon: MessageSquare },
   { href: '/insights',   tag: 'C', title: '인사이트',         desc: 'Neptune 집계 + Sonnet 4.6 스트리밍 + AgentCore Code Interpreter 차트.',                     color: 'amber',   icon: BarChart3 },
   { href: '/spec',       tag: 'D', title: '스펙 매치',        desc: '자연어 요구사항 → 후보 부품 + AEC-Q/IPC/JEDEC 표준 커버리지 그래프.',                        color: 'violet',  icon: FileSearch },
   { href: '/compliance', tag: 'E', title: '규제 검증',        desc: 'REACH SVHC / RoHS / PFAS / AEC-Q 준수 여부 즉시 확인 — 위반 경로 추적.',                    color: 'rose',    icon: ShieldCheck },
   { href: '/substitute', tag: 'F', title: '대체 부품',        desc: '공급 중단 시 동일 기능 + 공유 표준 기반 대안 산출.',                                          color: 'cyan',    icon: ArrowLeftRight },
   { href: '/price',      tag: 'G', title: '단가/재고 비교',   desc: '복수 공급사별 단가·납기·OTD 매트릭스 비교.',                                                  color: 'sky',     icon: Wallet },
-  { href: '/lane',       tag: 'H', title: '글로벌 SCM lane', desc: '7개국 trade lane + IRA/USMCA 이벤트 reroute 시뮬레이션.',                                    color: 'teal',    icon: Truck,         wow: true },
+  { href: '/lane',       tag: 'H', title: '글로벌 SCM lane', desc: '7개국 trade lane + IRA/USMCA 이벤트 reroute 시뮬레이션.',                                    color: 'teal',    icon: Truck },
   { href: '/rfm',        tag: 'I', title: '협력사 RFM',      desc: 'Recency·Frequency·Monetary 협력사 등급 + Tier별 납기 신뢰도.',                               color: 'orange',  icon: TrendingUp },
-  { href: '/eight-d',    tag: 'J', title: '8D / RCA',        desc: '품질 인시던트 ID → D1-D8 전체 보고서 자동 생성 + 근본 원인 그래프.',                           color: 'fuchsia', icon: ClipboardList, wow: true },
+  { href: '/eight-d',    tag: 'J', title: '8D / RCA',        desc: '품질 인시던트 ID → D1-D8 전체 보고서 자동 생성 + 근본 원인 그래프.',                           color: 'fuchsia', icon: ClipboardList },
   { href: '/esg',        tag: 'K', title: 'ESG / CBAM',      desc: 'Scope 1/2/3 탄소 배출량 + EU CBAM 2026 부담금 + IRA 적격 여부.',                            color: 'lime',    icon: Leaf },
   { href: '/pdm',        tag: 'L', title: 'PdM / IoT',       desc: '공장 IoT 텔레메트리 + 예지 보전 알람 + 정비 이벤트 추천.',                                    color: 'pink',    icon: Activity },
 ];
@@ -129,17 +128,12 @@ export default function HomePage() {
             부품·공급망·표준·품질 데이터를<br />
             <span className="text-accent-300">온톨로지 그래프</span>로 풀어내는 MFG 데모
           </h1>
-          <p className="text-ink-300 max-w-3xl leading-relaxed">
+          <p className="text-ink-300 leading-relaxed">
             JEDEC / IPC / AEC-Q / IATF 16949 / ISO 9001 + REACH / RoHS / CBAM / IRA / USMCA 표준에
             한국 Hi-Tech 어댑터를 매핑한 합성 데이터로, 12개 시나리오(의미 검색 → PdM/IoT)와
             22종 Knowledge Graph 객체 탐색을 한 화면에 제공합니다.
             우상단에서 페르소나를 전환하면 동일 시나리오가 5가지 시점으로 바뀝니다.
           </p>
-          <div className="flex items-center gap-3 mt-4 text-xs">
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-orange-500/10 border border-orange-500/30 text-orange-300">
-              ★ WOW 4곳: A 검색그래프 · B Memory+Guardrails · H lane reroute · J 8D 자동작성
-            </span>
-          </div>
         </div>
 
         <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
@@ -151,11 +145,6 @@ export default function HomePage() {
                 href={s.href}
                 className={`group relative rounded-lg border bg-gradient-to-br ${CARD_COLOR[s.color]} bg-ink-800 p-5 hover:bg-ink-700/60 transition`}
               >
-                {s.wow && (
-                  <div className="absolute top-2.5 right-10 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">
-                    WOW
-                  </div>
-                )}
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-10 h-10 rounded-md bg-ink-900 border border-ink-700 flex items-center justify-center shrink-0">
                     <Icon className="w-5 h-5 text-accent-300" />
