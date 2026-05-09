@@ -125,7 +125,7 @@ export default function HomePage() {
             AMZN Tech 온톨로지 데모 · Hi-Tech MFG · 12 시나리오 × 5 페르소나
           </p>
           <h1 className="text-4xl font-bold text-ink-50 leading-tight mb-3">
-            부품·공급망·표준·품질 데이터를<br />
+            부품·공급망·표준·품질 데이터를{" "}
             <span className="text-accent-300">온톨로지 그래프</span>로 풀어내는 MFG 데모
           </h1>
           <p className="text-ink-300 leading-relaxed">
