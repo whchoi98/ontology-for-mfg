@@ -95,7 +95,3 @@ api/
 pytest tests/api/                                    # full
 pytest tests/api/routers/test_eight_d_esg_pdm.py -q  # one router
 ```
-
-`tests/api/routers/test_insights.py::test_insights` has a pre-existing
-`KeyError: 'region'` — unrelated to anything you'd touch in a normal
-change. Don't fix it speculatively.

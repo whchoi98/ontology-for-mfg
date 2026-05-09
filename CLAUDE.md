@@ -150,8 +150,6 @@ for the full deploy procedure with safety checks.
 ## Testing & CI
 
 - `pytest` from project root — no integration AWS calls in unit suites
-- One existing failure (`test_insights.py::test_insights` `KeyError: 'region'`)
-  is pre-existing; do not block on it
 - TypeScript: `cd web && ./node_modules/.bin/tsc --noEmit` — strict mode
 - Bedrock invocations require `VscodeServerStack-VSCode-Role` IAM credentials
   on the dev EC2 host

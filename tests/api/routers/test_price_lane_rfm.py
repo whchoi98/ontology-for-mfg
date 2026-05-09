@@ -7,7 +7,8 @@ from api.main import app
 @patch("api.routers.price.get_neptune")
 def test_price(mock_n):
     mock_n.return_value.run_cypher.return_value = [
-        {"supplier_id": "S1", "supplier_name": "X", "region": "KR", "leadtime_days": 14, "otd": 0.95}
+        {"supplier_id": "S1", "supplier_name": "X", "region": "KR",
+         "leadtime_days": 14, "otd": 0.95, "unit_price_usd": 1.50}
     ]
     r = TestClient(app).post("/api/price", json={"component_id": "C1"})
     assert r.status_code == 200 and len(r.json()["offers"]) == 1
