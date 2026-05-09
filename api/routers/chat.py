@@ -1,6 +1,8 @@
 """Scenario B — Conversational Agent (SSE stream)."""
 from __future__ import annotations
 import json
+import logging
+import re
 from fastapi import APIRouter, Body
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
@@ -12,6 +14,7 @@ from api.services.compliance_engine import check_component
 from api.services.memory import save_fact
 
 router = APIRouter(tags=["chat"])
+log = logging.getLogger("mfg.chat")
 
 
 class ChatRequest(BaseModel):
@@ -25,8 +28,46 @@ def _tool_search(_name: str, args: dict) -> dict:
     return {"hits": [{"id": h["_id"], "name": h["_source"].get("name")} for h in hits]}
 
 
+# Deterministic deny-list of Cypher write/destructive clauses + dangerous
+# procedure namespaces. Defense-in-depth against LLM prompt-injection — the
+# system prompt and Bedrock Guardrails are probabilistic; this is not.
+# `\b` word boundaries + IGNORECASE catch case mixing; the COMPILE constants
+# keep the hot-path cheap.
+_CYPHER_WRITE_PATTERN = re.compile(
+    r"\b("
+    r"CREATE|DELETE|DETACH\s+DELETE|SET|REMOVE|MERGE|DROP|"
+    r"FOREACH|LOAD\s+CSV|USING\s+PERIODIC\s+COMMIT|"
+    r"CALL\s+db\.|CALL\s+dbms\.|CALL\s+apoc\.(?!coll|convert|map|meta|text|util)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
 def _tool_neptune(_name: str, args: dict) -> dict:
-    return {"results": get_neptune().run_cypher(args.get("cypher", ""), args.get("params", {}))}
+    """Read-only openCypher gateway.
+
+    The LLM may *generate* Cypher, but only MATCH / WITH / RETURN / UNWIND /
+    OPTIONAL MATCH / read-procedure CALLs are allowed to *execute*. Any
+    write or destructive clause short-circuits to an error result that the
+    agent can use to course-correct, instead of touching the graph.
+    """
+    cypher = (args.get("cypher") or "").strip()
+    if not cypher:
+        return {"error": "empty cypher"}
+    m = _CYPHER_WRITE_PATTERN.search(cypher)
+    if m:
+        log.warning("neptune tool blocked write clause %r in cypher=%r",
+                     m.group(0), cypher[:200])
+        return {
+            "error": "read-only mode: write/destructive Cypher rejected",
+            "blocked_clause": m.group(0).upper(),
+            "rejected_query": cypher[:200],
+            "hint": "Re-issue using only MATCH / WITH / RETURN / UNWIND / OPTIONAL MATCH.",
+        }
+    params = args.get("params") or {}
+    if not isinstance(params, dict):
+        params = {}
+    return {"results": get_neptune().run_cypher(cypher, params)}
 
 
 def _tool_kb(_name: str, args: dict) -> dict:
@@ -124,7 +165,10 @@ _SYSTEM_PROMPT_TEMPLATE = (
     "Always respond in Korean (technical English terms OK). "
     "When you need data:\n"
     "  • Use `search_semantic(q)` for fuzzy concept search (e.g. '차량용 -40°C BGA').\n"
-    "  • Use `neptune_query(cypher, params)` for precise BOM/Supplier/Plant/Lane lookups — ALWAYS supply a complete openCypher string.\n"
+    "  • Use `neptune_query(cypher, params)` for precise BOM/Supplier/Plant/Lane lookups — "
+    "ALWAYS supply a complete openCypher string. **READ-ONLY ONLY**: only "
+    "MATCH / OPTIONAL MATCH / WITH / RETURN / UNWIND. Never CREATE / DELETE / "
+    "SET / REMOVE / MERGE / DROP — the gateway will reject those.\n"
     "  • Use `kb_retrieve(q)` for datasheet / 8D / regulation context.\n"
     "  • Use `compliance_check(component_id)` for REACH/RoHS/AEC-Q verification.\n"
     "Never call a tool with empty arguments — every tool requires the listed `required` fields. "
