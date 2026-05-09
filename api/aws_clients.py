@@ -23,3 +23,13 @@ def secretsmanager():
 @functools.lru_cache(maxsize=8)
 def s3():
     return boto3.client("s3", region_name=settings.aws_region)
+
+
+@functools.lru_cache(maxsize=8)
+def dynamodb():
+    return boto3.client("dynamodb", region_name=settings.aws_region)
+
+
+@functools.lru_cache(maxsize=8)
+def cloudwatch_logs():
+    return boto3.client("logs", region_name=settings.aws_region)

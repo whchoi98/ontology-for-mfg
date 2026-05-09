@@ -14,15 +14,18 @@ can be reused with mfg-specific labels:
 """
 from __future__ import annotations
 
+import concurrent.futures
+import datetime as _dt
 import json
 import logging
+import threading
 import time
 from typing import Any, Dict, List, Optional
 
-import boto3
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from api.aws_clients import cloudwatch_logs, dynamodb as _ddb_client
 from api.config import settings
 from api.services import agent as agent_svc
 from api.services.neptune import get_neptune
@@ -153,8 +156,7 @@ def guardrail_events(minutes: int = 60, limit: int = 40) -> GuardrailResponse:
     start = end - max(1, int(minutes)) * 60 * 1000
     evts: List[GuardrailEvent] = []
     try:
-        logs = boto3.client("logs", region_name=settings.aws_region)
-        resp = logs.filter_log_events(
+        resp = cloudwatch_logs().filter_log_events(
             logGroupName="/aws/ecs/ontology-mfg-dev-api",
             startTime=start, endTime=end,
             filterPattern='?guardrail ?intervention ?intervened ?scrub ?차단',
@@ -201,8 +203,7 @@ def memory_snapshot(session_id: Optional[str] = None, top_k: int = 30) -> Memory
 
     events: List[MemoryEvent] = []
     try:
-        ddb = boto3.client("dynamodb", region_name=settings.aws_region)
-        resp = ddb.query(
+        resp = _ddb_client().query(
             TableName=_MEMORY_TABLE,
             KeyConditionExpression="session_id = :s",
             ExpressionAttributeValues={":s": {"S": session_id}},
@@ -266,8 +267,12 @@ _WOW_QUERIES: List[Dict[str, Any]] = [
 
 
 _eval_cache: Dict[str, Any] = {"updated_at": 0.0, "result": None}
+_eval_history_cache: Dict[str, Any] = {"updated_at": 0.0, "rows": []}
 _EVAL_CACHE_TTL_SEC = 600
+_EVAL_HISTORY_CACHE_TTL_SEC = 30
 _EVAL_HISTORY_TABLE = "ontology-mfg-dev-eval-history"
+_EVAL_HISTORY_TTL_DAYS = 90
+_eval_run_lock = threading.Lock()
 
 
 class EvalRow(BaseModel):
@@ -279,6 +284,15 @@ class EvalRow(BaseModel):
     error: Optional[str] = None
 
 
+class EvalHistoryRow(BaseModel):
+    run_id: Optional[str] = None
+    ts: int
+    pass_rate: float
+    passes: int
+    total: int
+    avg_latency_ms: int
+
+
 class EvalResponse(BaseModel):
     pass_rate: float
     passes: int
@@ -286,44 +300,42 @@ class EvalResponse(BaseModel):
     avg_latency_ms: int
     cached_at_unix: int
     rows: List[EvalRow]
-    history: List[Dict[str, Any]] = []
+    history: List[EvalHistoryRow] = []
 
 
 def _persist_eval_run(response: "EvalResponse") -> None:
     """Append a compact summary row to DynamoDB so trends survive process
-    restarts and are visible cross-instance. Best-effort: failures fall
-    back silently to in-memory only (the synthesizer recommended durable
-    storage in 0.4.0; see ADR follow-up). Table schema: PK `partition`
-    (constant `eval`), SK `run_id` = ISO timestamp."""
+    restarts. Items carry a `ttl` numeric attribute (90 days) so the table
+    self-prunes when DynamoDB TTL is enabled. Best-effort — failures fall
+    back silently."""
     try:
-        ddb = boto3.client("dynamodb", region_name=settings.aws_region)
         ts = int(response.cached_at_unix)
-        run_id = (
-            __import__("datetime").datetime.utcfromtimestamp(ts)
-            .strftime("%Y-%m-%dT%H:%M:%SZ")
-        )
-        ddb.put_item(
+        run_id = _dt.datetime.utcfromtimestamp(ts).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _ddb_client().put_item(
             TableName=_EVAL_HISTORY_TABLE,
             Item={
-                "partition":     {"S": "eval"},
-                "run_id":        {"S": run_id},
-                "ts":            {"N": str(ts)},
-                "pass_rate":     {"N": f"{response.pass_rate:.4f}"},
-                "passes":        {"N": str(response.passes)},
-                "total":         {"N": str(response.total)},
+                "partition":      {"S": "eval"},
+                "run_id":         {"S": run_id},
+                "ts":             {"N": str(ts)},
+                "ttl":            {"N": str(ts + _EVAL_HISTORY_TTL_DAYS * 86400)},
+                "pass_rate":      {"N": f"{response.pass_rate:.4f}"},
+                "passes":         {"N": str(response.passes)},
+                "total":          {"N": str(response.total)},
                 "avg_latency_ms": {"N": str(response.avg_latency_ms)},
             },
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         log.info("eval history persist skipped: %s", e)
 
 
-def _load_eval_history(limit: int = 30) -> List[Dict[str, Any]]:
-    """Most-recent runs first (DynamoDB Query, scan-index-forward false).
-    Returns an empty list when the table doesn't exist or read fails."""
+def _load_eval_history(limit: int = 15) -> List[Dict[str, Any]]:
+    """Most-recent runs first. Cached for `_EVAL_HISTORY_CACHE_TTL_SEC` so
+    rapid polling doesn't burn DDB reads."""
+    now = time.time()
+    if (now - _eval_history_cache["updated_at"]) < _EVAL_HISTORY_CACHE_TTL_SEC:
+        return _eval_history_cache["rows"][:limit]
     try:
-        ddb = boto3.client("dynamodb", region_name=settings.aws_region)
-        resp = ddb.query(
+        resp = _ddb_client().query(
             TableName=_EVAL_HISTORY_TABLE,
             KeyConditionExpression="#p = :p",
             ExpressionAttributeNames={"#p": "partition"},
@@ -331,92 +343,105 @@ def _load_eval_history(limit: int = 30) -> List[Dict[str, Any]]:
             ScanIndexForward=False,
             Limit=max(1, min(int(limit), 100)),
         )
-        out: List[Dict[str, Any]] = []
-        for item in resp.get("Items", []):
-            out.append({
-                "run_id":        (item.get("run_id") or {}).get("S"),
-                "ts":            int((item.get("ts") or {}).get("N") or 0),
-                "pass_rate":     float((item.get("pass_rate") or {}).get("N") or 0),
-                "passes":        int((item.get("passes") or {}).get("N") or 0),
-                "total":         int((item.get("total") or {}).get("N") or 0),
-                "avg_latency_ms": int((item.get("avg_latency_ms") or {}).get("N") or 0),
-            })
-        return out
-    except Exception as e:  # noqa: BLE001
+        rows = [
+            {
+                "run_id":         (it.get("run_id") or {}).get("S"),
+                "ts":             int((it.get("ts") or {}).get("N") or 0),
+                "pass_rate":      float((it.get("pass_rate") or {}).get("N") or 0),
+                "passes":         int((it.get("passes") or {}).get("N") or 0),
+                "total":          int((it.get("total") or {}).get("N") or 0),
+                "avg_latency_ms": int((it.get("avg_latency_ms") or {}).get("N") or 0),
+            }
+            for it in resp.get("Items", [])
+        ]
+        _eval_history_cache["updated_at"] = now
+        _eval_history_cache["rows"] = rows
+        return rows[:limit]
+    except Exception as e:
         log.info("eval history read skipped: %s", e)
         return []
 
 
+def _eval_one(svc, spec: Dict[str, Any]) -> EvalRow:
+    """Run a single wow-query and grade it. Pulled out so the loop can run
+    in parallel via ThreadPoolExecutor."""
+    q, kws = spec["q"], spec["kws"]
+    t0 = time.perf_counter()
+    err: Optional[str] = None
+    hits: List[Dict[str, Any]] = []
+    if svc is not None:
+        try:
+            hits = list(svc.hybrid_search(q, top_n=10))
+        except Exception as e:
+            err = str(e)[:200]
+    else:
+        err = "search service unavailable"
+    latency_ms = int((time.perf_counter() - t0) * 1000)
+    text_blob = " ".join(
+        json.dumps(h.get("_source", {}), ensure_ascii=False)
+        for h in hits[:5]
+    ).lower()
+    ok = bool(hits) and any(k.lower() in text_blob for k in kws)
+    return EvalRow(
+        q=q, keywords=kws, hit_count=len(hits), passed=ok,
+        latency_ms=latency_ms, error=err,
+    )
+
+
 @router.get("/ops/eval", response_model=EvalResponse)
-def eval_status(run: bool = False) -> EvalResponse:
-    """Return cached eval results, or run live if `run=true` (or cache stale).
-    Always attaches the most recent N runs from durable history so the UI
-    can plot trends without making a second call."""
+def eval_status(run: bool = False, history_limit: int = 15) -> EvalResponse:
+    """Return cached eval results, or run live if `run=true`/cache stale.
+    Always attaches the most recent N runs from durable history (cached
+    30s) so the UI can plot trends without a second call.
+
+    The fresh-run branch holds a process-local lock so concurrent
+    `run=true` requests don't double-execute the 30 wow queries or
+    double-write the same run to DynamoDB."""
     now = time.time()
     cached = _eval_cache.get("result")
     if cached and not run and (now - _eval_cache["updated_at"]) < _EVAL_CACHE_TTL_SEC:
-        # Refresh history every read so the trend stays current even with
-        # a warm in-memory cache.
-        cached.history = _load_eval_history(limit=30)
+        cached.history = _load_eval_history(limit=history_limit)
         return cached  # type: ignore[return-value]
 
-    rows: List[EvalRow] = []
-    passes = 0
-    latencies: List[int] = []
-    svc = None
-    try:
-        svc = get_search()
-    except Exception as e:
-        log.warning("search service init failed: %s", e)
+    with _eval_run_lock:
+        # Re-check after acquiring — another thread may have just refreshed.
+        cached = _eval_cache.get("result")
+        if cached and not run and (now - _eval_cache["updated_at"]) < _EVAL_CACHE_TTL_SEC:
+            cached.history = _load_eval_history(limit=history_limit)
+            return cached  # type: ignore[return-value]
 
-    for spec in _WOW_QUERIES:
-        q = spec["q"]
-        kws = spec["kws"]
-        t0 = time.perf_counter()
-        err: Optional[str] = None
-        hits: List[Dict[str, Any]] = []
-        if svc is not None:
-            try:
-                hits = list(svc.hybrid_search(q, top_n=10))
-            except Exception as e:
-                err = str(e)[:200]
-        else:
-            err = "search service unavailable"
-        latency_ms = int((time.perf_counter() - t0) * 1000)
-        latencies.append(latency_ms)
-        text_blob = " ".join(
-            (
-                str(h.get("_source", {}).get("name", ""))
-                + " "
-                + str(h.get("_source", {}).get("description", ""))
-                + " "
-                + json.dumps(h.get("_source", {}), ensure_ascii=False)
-            )
-            for h in hits[:5]
-        ).lower()
-        ok = bool(hits) and any(k.lower() in text_blob for k in kws)
-        if ok:
-            passes += 1
-        rows.append(EvalRow(
-            q=q, keywords=kws, hit_count=len(hits), passed=ok,
-            latency_ms=latency_ms, error=err,
-        ))
+        try:
+            svc = get_search()
+        except Exception as e:
+            log.warning("search service init failed: %s", e)
+            svc = None
 
-    total = len(rows)
-    response = EvalResponse(
-        pass_rate=(passes / total) if total else 0.0,
-        passes=passes, total=total,
-        avg_latency_ms=int(sum(latencies) / max(len(latencies), 1)),
-        cached_at_unix=int(now),
-        rows=rows,
-        history=[],
-    )
-    _eval_cache["updated_at"] = now
-    _eval_cache["result"] = response
-    # Persist this run + reload history so the trend includes the new point.
-    _persist_eval_run(response)
-    response.history = _load_eval_history(limit=30)
-    return response
+        # 30 hybrid_search calls in parallel — each is a network round-trip
+        # to OpenSearch (~200-500ms). Serial took 6-15s; pool of 8 cuts to
+        # ~1.5-3s wall time.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            rows = list(ex.map(lambda s: _eval_one(svc, s), _WOW_QUERIES))
+
+        passes = sum(1 for r in rows if r.passed)
+        total = len(rows)
+        avg_latency = int(
+            sum(r.latency_ms for r in rows) / max(total, 1)
+        )
+        response = EvalResponse(
+            pass_rate=(passes / total) if total else 0.0,
+            passes=passes, total=total,
+            avg_latency_ms=avg_latency,
+            cached_at_unix=int(now),
+            rows=rows,
+            history=[],
+        )
+        _eval_cache["updated_at"] = now
+        _eval_cache["result"] = response
+        _persist_eval_run(response)
+        # Bust the history cache so the next call picks up this new row.
+        _eval_history_cache["updated_at"] = 0.0
+        response.history = _load_eval_history(limit=history_limit)
+        return response
 
 
 # ─── /ops/trace ─────────────────────────────────────────────────────────────

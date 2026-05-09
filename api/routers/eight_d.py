@@ -1,7 +1,6 @@
 # api/routers/eight_d.py — Scenario J (SSE stream)
 from __future__ import annotations
 import concurrent.futures
-import json
 import logging
 import time
 from fastapi import APIRouter, Body
@@ -21,20 +20,24 @@ _BEDROCK_POOL = concurrent.futures.ThreadPoolExecutor(
     max_workers=4, thread_name_prefix="eight_d_bedrock"
 )
 
+# Single-source-of-truth UI labels for Bedrock CRIP ids — a substring
+# in the model id maps to the chip label. When AWS rotates a model
+# version (Sonnet 4.6 → 4.7, etc.) update this table only.
+_MODEL_LABELS: list[tuple[str, str]] = [
+    ("haiku",  "Haiku 4.5"),
+    ("sonnet", "Sonnet 4.6"),
+    ("opus",   "Opus"),
+]
+
 
 def _short_model_label(model_id: str) -> str:
-    """Compress a Bedrock CRIP id (e.g. global.anthropic.claude-haiku-4-5-...)
-    into a UI-friendly chip label like 'Haiku 4.5'."""
+    """Compress a Bedrock CRIP id into a UI-friendly chip label."""
     if not model_id:
         return "Bedrock"
     low = model_id.lower()
-    if "haiku" in low:
-        return "Haiku 4.5"
-    if "sonnet" in low:
-        return "Sonnet 4.6"
-    if "opus" in low:
-        return "Opus"
-    # Fallback: take last segment, strip version suffixes.
+    for needle, label in _MODEL_LABELS:
+        if needle in low:
+            return label
     return model_id.split(".")[-1].split(":")[0][:24]
 
 router = APIRouter(tags=["eight_d"])
@@ -106,16 +109,7 @@ def _assemble_markdown(inc: dict, draft: dict, *, similar_count: int,
     return "\n".join(lines)
 
 
-def _sse_event(payload: dict) -> dict:
-    """Wrap a JSON payload as an SSE event with a stable event-name.
-
-    Thin compat shim around `api.schemas.sse.as_event`; new code should
-    construct typed Pydantic models from `api.schemas.sse` and pass them
-    to `as_event` directly. This dict-form remains for incremental
-    migration of the existing yield sites below.
-    """
-    from api.schemas.sse import as_event
-    return as_event(payload)
+from api.schemas.sse import as_event as _sse_event
 
 
 @router.post("/eight-d")

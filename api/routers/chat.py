@@ -1,11 +1,11 @@
 """Scenario B — Conversational Agent (SSE stream)."""
 from __future__ import annotations
-import json
 import logging
 import re
 from fastapi import APIRouter, Body
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
+from api.schemas.sse import as_event
 from api.services.agent import AgentRunner
 from api.services.search import get_search
 from api.services.neptune import get_neptune
@@ -186,5 +186,5 @@ def chat(req: ChatRequest = Body(...)):
 
     def gen():
         for event in runner.run_stream(req.msg, session_id=req.session_id):
-            yield {"event": event["type"], "data": json.dumps(event)}
+            yield as_event(event)
     return EventSourceResponse(gen())

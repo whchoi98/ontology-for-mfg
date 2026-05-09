@@ -26,12 +26,6 @@ class _LooseModel(BaseModel):
 
 # ─── Search (A) ────────────────────────────────────────────────────────────
 
-class SearchHit(_LooseModel):
-    """One row in /api/search hits[]."""
-    id: Optional[str] = Field(default=None, alias="_id")
-    score: Optional[float] = None
-
-
 class CytoscapeNode(_LooseModel):
     data: Dict[str, Any]
 
@@ -50,18 +44,23 @@ class SearchResponse(_LooseModel):
     subgraph: CytoscapeSubgraph = Field(default_factory=CytoscapeSubgraph)
 
 
-# ─── Substitute (F) ────────────────────────────────────────────────────────
-
-class SubstituteCandidate(_LooseModel):
+# Used by both /substitute and /spec-match — same fields, distinct only
+# in domain semantics (substitute candidate vs spec-match candidate).
+class Candidate(_LooseModel):
     id: Optional[str] = None
     name: Optional[str] = None
     score: Optional[float] = None
     standards: Optional[List[str]] = None
 
 
+# ─── Substitute (F) ────────────────────────────────────────────────────────
+
+SubstituteCandidate = Candidate
+
+
 class SubstituteResponse(_LooseModel):
     original: Optional[Dict[str, Any]] = None
-    candidates: List[SubstituteCandidate] = Field(default_factory=list)
+    candidates: List[Candidate] = Field(default_factory=list)
     subgraph: Optional[CytoscapeSubgraph] = None
 
 
@@ -102,15 +101,11 @@ class PriceResponse(_LooseModel):
 
 # ─── Spec Match (D) ────────────────────────────────────────────────────────
 
-class SpecCandidate(_LooseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    score: Optional[float] = None
-    standards: Optional[List[str]] = None
+SpecCandidate = Candidate
 
 
 class SpecMatchResponse(_LooseModel):
-    candidates: List[SpecCandidate] = Field(default_factory=list)
+    candidates: List[Candidate] = Field(default_factory=list)
     subgraph: Optional[CytoscapeSubgraph] = None
 
 

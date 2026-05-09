@@ -74,8 +74,8 @@ class ToolResultEvent(_LooseEvent):
 
 class GuardrailEvent(_LooseEvent):
     type: Literal["guardrail"] = "guardrail"
-    name: str  # input_check / output_check / topic name
-    result: str  # passed / blocked
+    name: str
+    result: Literal["passed", "blocked"]
     content: Optional[str] = None
 
 
