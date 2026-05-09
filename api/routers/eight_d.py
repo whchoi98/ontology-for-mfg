@@ -7,6 +7,7 @@ import time
 from fastapi import APIRouter, Body
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
+from api.config import settings
 from api.services.neptune import get_neptune
 from api.services.eight_d_writer import draft_eight_d
 from api.services.kb import retrieve_kb
@@ -19,6 +20,22 @@ _BEDROCK_BUDGET_S = 25.0
 _BEDROCK_POOL = concurrent.futures.ThreadPoolExecutor(
     max_workers=4, thread_name_prefix="eight_d_bedrock"
 )
+
+
+def _short_model_label(model_id: str) -> str:
+    """Compress a Bedrock CRIP id (e.g. global.anthropic.claude-haiku-4-5-...)
+    into a UI-friendly chip label like 'Haiku 4.5'."""
+    if not model_id:
+        return "Bedrock"
+    low = model_id.lower()
+    if "haiku" in low:
+        return "Haiku 4.5"
+    if "sonnet" in low:
+        return "Sonnet 4.6"
+    if "opus" in low:
+        return "Opus"
+    # Fallback: take last segment, strip version suffixes.
+    return model_id.split(".")[-1].split(":")[0][:24]
 
 router = APIRouter(tags=["eight_d"])
 log = logging.getLogger("mfg.eight_d")
@@ -150,8 +167,17 @@ def eight_d(req: EightDRequest = Body(...)):
                            "detail": f"{len(similar)} hits"})
 
         # ── Phase 3: Bedrock 8D draft (with 25s timeout safety net) ──────────
-        yield _sse_event({"type": "phase", "phase": "bedrock",
-                           "label": "Sonnet 4.6 8D 작성"})
+        # Mirror the writer's model selection so the chip label reflects the
+        # *actual* runtime model — eight_d_writer prefers haiku, falling
+        # back to sonnet only when haiku is unset.
+        active_model_id = settings.haiku_model or settings.sonnet_model
+        active_model_label = _short_model_label(active_model_id)
+        yield _sse_event({
+            "type": "phase", "phase": "bedrock",
+            "label": f"{active_model_label} 8D 작성",
+            "model_id": active_model_id,
+            "model_label": active_model_label,
+        })
         t3 = time.monotonic()
         future = _BEDROCK_POOL.submit(
             draft_eight_d,

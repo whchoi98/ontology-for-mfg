@@ -1,5 +1,50 @@
 # CHANGELOG.md
 
+## 0.4.0 — 2026-05-09
+
+### Highlights
+- 8D writer flipped to Haiku 4.5 + maxTokens 1500 — fallback no longer fires on every call
+- 8D PDF export added; underlying renderer extracted to a reusable `lib/pdf-export.ts`
+- Validation report now reads live Neptune counts via `/api/ops/ingest`
+- Hero title rephrased to "온톨로지/Agentic AI" to reflect the agentic layer
+- 8D Bedrock phase chip now shows the actual runtime model name (Haiku 4.5 / Sonnet 4.6)
+
+### Features
+- **perf(8d)** — Switch the 8D writer from Sonnet 4.6 to Haiku 4.5 (`settings.haiku_model`,
+  CRIP `global.anthropic.claude-haiku-4-5-20251001-v1:0`). Cap `maxTokens` 3000→1500 since
+  each D-section is 1–3 Korean sentences. Average pipeline drops from ~36s (timeout +
+  fallback) to ~6–10s (real LLM result). The 25s budget + deterministic fallback stay as
+  a safety net.
+- **feat(8d)** — PDF download button (jsPDF + html2canvas) on `/eight-d` next to
+  MD copy / MD download. White A4 with title bar, incident metadata strip,
+  and 8 D-section cards with orange left-border accent. Falls back to splitting
+  markdown headings if the SSE result didn't carry `sections`.
+- **feat(web)** — `web/lib/pdf-export.ts` — reusable export pipeline shared by chat
+  and 8D pages. Configurable per-section `accentColor` lets each scenario keep its
+  visual identity (sky/emerald for chat, orange for 8D) while sharing the
+  off-screen-DOM → html2canvas → jsPDF pipeline.
+- **feat(8d)** — Bedrock phase chip label is now derived from the actual model id
+  passed in the SSE phase event. Backend `_short_model_label()` maps CRIP ids to
+  user-friendly names (Haiku 4.5 / Sonnet 4.6 / Opus). UI prefers the server-emitted
+  label over the static fallback.
+- **ux(home)** — Hero title "온톨로지 그래프" → "온톨로지/Agentic AI" so the agentic
+  layer (Bedrock Converse, tool-use, AgentCore Memory) is visible in the lead message.
+
+### Fixes
+- **fix(validation)** — `/validation` page now calls `/api/ops/ingest` on mount and
+  on the refresh button instead of leaving 6 of 8 rows as a static
+  "Neptune 직접 쿼리 필요" placeholder. Pass/fail rendered with actual counts vs
+  spec § 8.4 minimums; auto-runs at page load. Layout aligned with the rest of the
+  project (`max-w-4xl mx-auto` + ScenarioHeader).
+- **fix(home)** — Forced `<br/>` removed from hero `<h1>`. Title now flows on a
+  single line on wide screens, wraps naturally on narrow ones — matching the
+  description paragraph behaviour.
+
+### Internal
+- v0.3.0 annotated git tag attached to commit `2c2ab56`.
+- Chat scenario log PDF refactored onto the shared helper — chat code shed
+  ~80 lines of duplicate canvas/PDF setup.
+
 ## 0.3.0 — 2026-05-09
 
 ### Highlights

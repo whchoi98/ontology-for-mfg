@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { eightDStream } from "@/lib/api-client";
+import { exportToPdf, type PdfSection } from "@/lib/pdf-export";
 import { useActivePersona } from "@/lib/persona-context";
 import { MarkdownView } from "@/components/MarkdownView";
 import type { Persona } from "@/lib/types";
@@ -38,10 +39,13 @@ const PERSONA_LABEL: Record<Persona, string> = {
 };
 
 // Phase chip palette mirrors the chat page so the UX feels consistent.
+// `label` here is a *fallback* — the SSE phase event always carries the
+// authoritative label (e.g. "Haiku 4.5 8D 작성") so the chip reflects the
+// model actually executing, not a hardcoded model name.
 const PHASE_META: Record<string, { label: string; tone: string }> = {
   neptune: { label: "지식 그래프 조회",   tone: "border-sky-500/40    bg-sky-500/10    text-sky-200" },
   kb:      { label: "KB 유사 사례 검색", tone: "border-violet-500/40 bg-violet-500/10 text-violet-200" },
-  bedrock: { label: "Sonnet 4.6 8D 작성", tone: "border-orange-500/40 bg-orange-500/10 text-orange-200" },
+  bedrock: { label: "Bedrock 8D 작성",   tone: "border-orange-500/40 bg-orange-500/10 text-orange-200" },
 };
 
 interface Phase {
@@ -140,30 +144,12 @@ export default function EightDPage() {
     URL.revokeObjectURL(url);
   }
 
-  // PDF: render an off-screen white-themed structured DOM (header + 8 D-section
-  // cards) and rasterize with html2canvas → multi-page jsPDF. Mirrors the chat
-  // page export pattern but tailored to the 8D AIAG layout.
+  // PDF: delegate the off-screen DOM → canvas → A4 pipeline to lib/pdf-export
+  // and provide only the 8D-specific shape (header lines, section cards).
   async function downloadPdf() {
     if (!markdown || exporting) return;
     setExporting(true);
     try {
-      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-        import("jspdf"),
-        import("html2canvas"),
-      ]);
-
-      const host = document.createElement("div");
-      host.style.position = "fixed";
-      host.style.left = "-10000px";
-      host.style.top = "0";
-      host.style.width = "760px";
-      host.style.padding = "28px 32px";
-      host.style.background = "#ffffff";
-      host.style.color = "#111";
-      host.style.fontFamily = "'Noto Sans KR', system-ui, sans-serif";
-      host.style.fontSize = "13px";
-      host.style.lineHeight = "1.65";
-
       const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
       const inc = incidentMeta ?? {};
       const incTitle = String(inc.title ?? incidentId);
@@ -173,38 +159,9 @@ export default function EightDPage() {
       const plantId = String(inc.plant_id ?? "—");
       const mode = fallback
         ? "결정론적 폴백 (Bedrock 응답 지연 >25s)"
-        : "Sonnet/Haiku tool-use 생성";
+        : "Bedrock tool-use 생성";
 
-      const h1 = document.createElement("h1");
-      h1.textContent = `8D Report — ${incId}`;
-      h1.style.fontSize = "20px";
-      h1.style.borderBottom = "2px solid #1f2937";
-      h1.style.paddingBottom = "6px";
-      h1.style.margin = "0 0 12px";
-      host.appendChild(h1);
-
-      const sub = document.createElement("div");
-      sub.style.fontSize = "12px"; sub.style.color = "#374151";
-      sub.style.marginBottom = "6px"; sub.style.fontWeight = "600";
-      sub.textContent = incTitle;
-      host.appendChild(sub);
-
-      const meta = document.createElement("div");
-      meta.style.fontSize = "11px"; meta.style.color = "#6b7280";
-      meta.style.marginBottom = "4px";
-      meta.textContent = `심각도 ${severity} · 부품 ${componentId} · 공장 ${plantId}`;
-      host.appendChild(meta);
-
-      const meta2 = document.createElement("div");
-      meta2.style.fontSize = "11px"; meta2.style.color = "#6b7280";
-      meta2.style.marginBottom = "16px";
-      meta2.textContent = `생성 모드: ${mode}` +
-        (totalS != null ? ` · 총 소요 ${totalS.toFixed(1)}s` : "") +
-        ` · 추출 ${stamp}`;
-      host.appendChild(meta2);
-
-      // Render each D-section as a clean card. If the SSE result didn't
-      // include `sections`, fall back to splitting markdown headings.
+      // Section source: SSE result → otherwise reconstruct from markdown headings.
       const renderSections: EightDSection[] =
         sections.length > 0
           ? sections
@@ -214,75 +171,25 @@ export default function EightDPage() {
               return { section: code, title, content: "" };
             });
 
-      renderSections.forEach((s) => {
-        const card = document.createElement("div");
-        card.style.margin = "0 0 14px";
-        card.style.padding = "12px 14px";
-        card.style.border = "1px solid #d1d5db";
-        card.style.borderLeft = "4px solid #f59e0b";
-        card.style.borderRadius = "4px";
-        card.style.background = "#fafafa";
-        card.style.pageBreakInside = "avoid";
+      const pdfSections: PdfSection[] = renderSections.map((s) => ({
+        badge: s.section,
+        title: s.title.replace(/^D\d+ — /, ""),
+        body: s.content || "(생성된 내용 없음)",
+        accentColor: "#f59e0b",
+      }));
 
-        const hdr = document.createElement("div");
-        hdr.style.fontSize = "12px";
-        hdr.style.fontWeight = "700";
-        hdr.style.color = "#111827";
-        hdr.style.marginBottom = "6px";
-        hdr.textContent = `${s.section} — ${s.title}`;
-        card.appendChild(hdr);
-
-        const body = document.createElement("div");
-        body.style.fontSize = "12px";
-        body.style.lineHeight = "1.65";
-        body.style.color = "#1f2937";
-        body.style.whiteSpace = "pre-wrap";
-        body.style.wordBreak = "break-word";
-        body.textContent = s.content || "(생성된 내용 없음)";
-        card.appendChild(body);
-
-        host.appendChild(card);
+      await exportToPdf({
+        title: `8D Report — ${incId}`,
+        subtitle: incTitle,
+        meta: `심각도 ${severity} · 부품 ${componentId} · 공장 ${plantId}`,
+        meta2:
+          `생성 모드: ${mode}` +
+          (totalS != null ? ` · 총 소요 ${totalS.toFixed(1)}s` : "") +
+          ` · 추출 ${stamp}`,
+        sections: pdfSections,
+        footer: `Ontology MFG · AIAG 8D Report · 합성 데이터 · 생성: ${stamp}`,
+        filename: `8d-${incidentId}-${Date.now()}`,
       });
-
-      const footer = document.createElement("div");
-      footer.style.borderTop = "1px solid #e5e7eb";
-      footer.style.paddingTop = "8px";
-      footer.style.marginTop = "8px";
-      footer.style.fontSize = "10px";
-      footer.style.color = "#9ca3af";
-      footer.textContent =
-        "Ontology MFG · AIAG 8D Report · 합성 데이터 · 생성: " + stamp;
-      host.appendChild(footer);
-
-      document.body.appendChild(host);
-      try {
-        const canvas = await html2canvas(host, {
-          scale: 2,
-          backgroundColor: "#ffffff",
-          useCORS: true,
-          logging: false,
-        });
-        const pdf = new jsPDF("p", "mm", "a4");
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        const imgWidth = pageWidth;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        const imgData = canvas.toDataURL("image/jpeg", 0.95);
-
-        let heightLeft = imgHeight;
-        let position = 0;
-        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-        while (heightLeft > 0) {
-          position -= pageHeight;
-          pdf.addPage();
-          pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-          heightLeft -= pageHeight;
-        }
-        pdf.save(`8d-${incidentId}-${Date.now()}.pdf`);
-      } finally {
-        host.remove();
-      }
     } catch (e) {
       console.error("8D PDF export failed:", e);
       setError(e instanceof Error ? e.message : String(e));
@@ -384,6 +291,10 @@ export default function EightDPage() {
             <ol className="flex flex-wrap items-center gap-2">
               {phases.map((p, i) => {
                 const meta = PHASE_META[p.name] ?? { label: p.label, tone: "border-slate-500/40 bg-slate-500/10 text-slate-200" };
+                // Server-emitted label wins over the static fallback so the
+                // bedrock chip reflects the actual model (e.g. "Haiku 4.5
+                // 8D 작성"), not the hardcoded one.
+                const chipLabel = p.label || meta.label;
                 return (
                   <li
                     key={i}
@@ -394,7 +305,7 @@ export default function EightDPage() {
                     ].join(" ")}
                   >
                     <span className="text-[9px] opacity-60">{i + 1}.</span>
-                    <span className="font-semibold">{meta.label}</span>
+                    <span className="font-semibold">{chipLabel}</span>
                     {p.done && p.duration != null && (
                       <span className="opacity-70">— {p.duration.toFixed(1)}s</span>
                     )}
