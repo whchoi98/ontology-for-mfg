@@ -33,7 +33,10 @@ def _synthesize_suppliers(tier: int) -> list[dict]:
     return out
 
 
-@router.post("/supplier-rfm")
+from api.schemas import SupplierRfmResponse
+
+
+@router.post("/supplier-rfm", response_model=SupplierRfmResponse)
 def rfm(req: RfmRequest = Body(...)) -> dict:
     label = "Supplier" if req.tier == 1 else "SubSupplier"
 

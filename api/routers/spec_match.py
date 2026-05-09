@@ -61,7 +61,10 @@ def _synthesize_candidates(requirements: str, top_n: int) -> list[dict]:
     return out
 
 
-@router.post("/spec-match")
+from api.schemas import SpecMatchResponse
+
+
+@router.post("/spec-match", response_model=SpecMatchResponse)
 def spec_match(req: SpecRequest = Body(...)) -> dict:
     candidates: list[dict] = []
     try:

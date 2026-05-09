@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from api.services.search import get_search
 from api.services.reranker import rerank
 from api.services.neptune import get_neptune
+from api.schemas import SearchResponse
 
 router = APIRouter(tags=["search"])
 
@@ -15,7 +16,7 @@ class SearchRequest(BaseModel):
     top_n: int = 10
 
 
-@router.post("/search")
+@router.post("/search", response_model=SearchResponse)
 def search(req: SearchRequest = Body(...)) -> dict:
     hits = get_search().hybrid_search(req.q, top_n=req.top_n * 2)
     docs = [{"id": h["_id"], "text": h["_source"].get("text", ""), **h["_source"]} for h in hits]

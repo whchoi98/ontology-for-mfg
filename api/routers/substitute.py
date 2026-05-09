@@ -215,7 +215,10 @@ def samples(limit: int = Query(15, ge=1, le=50)) -> dict:
     return {"items": items, "total": len(items), "_synthetic": True}
 
 
-@router.post("/substitute")
+from api.schemas import SubstituteResponse
+
+
+@router.post("/substitute", response_model=SubstituteResponse)
 def substitute(req: SubstituteRequest = Body(...)) -> dict:
     # Original component lookup
     original: Optional[dict] = None

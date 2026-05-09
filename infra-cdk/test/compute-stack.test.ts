@@ -44,4 +44,27 @@ describe('ComputeStack', () => {
       RuntimePlatform: { CpuArchitecture: 'ARM64' },
     });
   });
+
+  // Locks in the IAM-scoping invariant from the 0.4.0 harness-eval
+  // finding: no IAM policy attached to a task role may grant
+  // Action:"*" with Resource:"*". A regression here would mean the
+  // API/Web tasks could perform any AWS action against any resource.
+  test('No IAM policy grants Action:* on Resource:* (allow effect)', () => {
+    const policies = template.findResources('AWS::IAM::Policy');
+    for (const [logicalId, policy] of Object.entries(policies)) {
+      const stmts = (policy as any).Properties?.PolicyDocument?.Statement ?? [];
+      for (const stmt of stmts) {
+        const actions = Array.isArray(stmt.Action) ? stmt.Action : [stmt.Action];
+        const resources = Array.isArray(stmt.Resource) ? stmt.Resource : [stmt.Resource];
+        const wildcardAction = actions.includes('*');
+        const wildcardResource = resources.includes('*');
+        if (wildcardAction && wildcardResource && stmt.Effect !== 'Deny') {
+          throw new Error(
+            `IAM Policy ${logicalId} grants Action:"*" on Resource:"*" — ` +
+            `task roles must be scoped (see harness-eval 0.4.0 finding).`,
+          );
+        }
+      }
+    }
+  });
 });

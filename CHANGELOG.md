@@ -1,5 +1,57 @@
 # CHANGELOG.md
 
+## 0.5.0 — 2026-05-09
+
+Closes the four broader recommendations from the harness-eval Full
+report (0.4.0 / 7.8 → expected ~9.0+). Coverage strengthening across
+contracts (Pydantic), CDK invariants (IAM + SSE compression), SSE
+event vocabulary unification, and durable eval history.
+
+### Highlights
+- Typed `response_model` on all 7 sync scenario routers — OpenAPI
+  spec is now machine-usable, not `{}` blobs
+- CDK Jest tests now lock the IAM-scope and CloudFront-SSE-compression
+  invariants — regressions fail-fast in CI
+- SSE event vocabulary centralized — single Pydantic source of truth
+  + matching TypeScript discriminated union
+- `/api/ops/eval` runs persisted to DynamoDB → cross-deploy trend
+  visibility
+
+### Features
+- **feat(api/schemas)** — New `api/schemas/__init__.py` with Pydantic
+  response models for `SearchResponse`, `SubstituteResponse`,
+  `ComplianceResponse`, `PriceResponse`, `SpecMatchResponse`,
+  `SupplierRfmResponse`, `PdmResponse`. All routers now declare
+  `response_model=` so FastAPI auto-validates outbound shape and the
+  OpenAPI spec carries field descriptions.
+- **feat(api/schemas/sse)** — Single source of truth for the 9-event
+  SSE vocabulary (`PhaseEvent`, `PhaseDoneEvent`, `DeltaEvent`,
+  `ToolCallEvent`, `ToolResultEvent`, `GuardrailEvent`, `LogEvent`,
+  `ErrorEvent`, `ResultEvent`, `StopEvent`). `as_event()` helper
+  formats any model into sse-starlette's `{event, data}` shape.
+- **feat(web/lib/sse-events.ts)** — Mirroring TypeScript discriminated
+  union with `isEvent<T>()` type-narrowing helper. Producer and
+  consumer now reference the same contract.
+- **feat(infra-cdk)** — Two new CDK Jest assertions:
+  - `compute-stack.test.ts` rejects any IAM policy granting
+    `Action: "*"` on `Resource: "*"` (allow effect) on task roles.
+  - `edge-stack.test.ts` requires at least one CloudFront cache
+    behavior with `Compress: false` (locks ADR-007 invariant).
+- **feat(api/ops/eval)** — Each eval run is now persisted to
+  DynamoDB table `ontology-mfg-dev-eval-history` (PK `partition`,
+  SK `run_id` ISO timestamp). Endpoint response now carries
+  `history: List[...]` with the most recent 30 runs so the UI can
+  plot trends without a second call. Best-effort write — DynamoDB
+  failures fall back silently to in-memory.
+
+### Internal
+- Same `_LooseModel` base (`extra="allow"`) used across both schema
+  modules so router-side enrichment fields (`_synthetic`,
+  `model_label`, `total_s`, etc.) survive validation.
+- `eight_d.py` `_sse_event` now thin-shims over `api.schemas.sse.as_event`
+  so future emit sites can use typed Pydantic models without
+  rewriting all 9 yield points at once.
+
 ## 0.4.1 — 2026-05-09 (patch)
 
 Top-3 fixes from the harness-eval Full report (7.8/B → expected ~8.5+

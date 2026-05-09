@@ -33,7 +33,10 @@ def _synthesize_sensors(plant_id: Optional[str]) -> list[dict]:
     return out
 
 
-@router.post("/pdm")
+from api.schemas import PdmResponse
+
+
+@router.post("/pdm", response_model=PdmResponse)
 def pdm(req: PdmRequest = Body(...)) -> dict:
     nep = get_neptune()
     rows: list[dict] = []

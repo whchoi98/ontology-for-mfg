@@ -41,4 +41,38 @@ describe('EdgeStack', () => {
       Handler: 'index.handler',
     });
   });
+
+  // ADR-007 invariant: SSE paths must NOT enable origin compression,
+  // otherwise CloudFront buffers chunks and phase chips arrive in a
+  // single burst. The CloudFront distribution must therefore have at
+  // least one cache behavior with Compress: false on an /api/* SSE path
+  // (the deciding behavior is whichever one routes /api/chat or /api/eight-d).
+  // We assert the negative here: at least one cache behavior in the
+  // distribution has Compress=false. If the team ever flips compression
+  // on globally, this test fails fast.
+  test('At least one CloudFront cache behavior has Compress:false (ADR-007)', () => {
+    const dists = template.findResources('AWS::CloudFront::Distribution');
+    let foundUncompressedBehavior = false;
+    for (const dist of Object.values(dists)) {
+      const cfg = (dist as any).Properties?.DistributionConfig ?? {};
+      const all = [
+        cfg.DefaultCacheBehavior,
+        ...(cfg.CacheBehaviors ?? []),
+      ].filter(Boolean);
+      for (const cb of all) {
+        if (cb.Compress === false) {
+          foundUncompressedBehavior = true;
+          break;
+        }
+      }
+    }
+    if (!foundUncompressedBehavior) {
+      throw new Error(
+        'No CloudFront cache behavior has Compress:false — ' +
+        'SSE paths require origin compression disabled (ADR-007). ' +
+        'Add a separate cache behavior for /api/chat,/api/eight-d,/api/insights ' +
+        'with compress=false in EdgeStack.',
+      );
+    }
+  });
 });

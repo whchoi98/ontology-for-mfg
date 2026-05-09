@@ -267,6 +267,7 @@ _WOW_QUERIES: List[Dict[str, Any]] = [
 
 _eval_cache: Dict[str, Any] = {"updated_at": 0.0, "result": None}
 _EVAL_CACHE_TTL_SEC = 600
+_EVAL_HISTORY_TABLE = "ontology-mfg-dev-eval-history"
 
 
 class EvalRow(BaseModel):
@@ -285,14 +286,78 @@ class EvalResponse(BaseModel):
     avg_latency_ms: int
     cached_at_unix: int
     rows: List[EvalRow]
+    history: List[Dict[str, Any]] = []
+
+
+def _persist_eval_run(response: "EvalResponse") -> None:
+    """Append a compact summary row to DynamoDB so trends survive process
+    restarts and are visible cross-instance. Best-effort: failures fall
+    back silently to in-memory only (the synthesizer recommended durable
+    storage in 0.4.0; see ADR follow-up). Table schema: PK `partition`
+    (constant `eval`), SK `run_id` = ISO timestamp."""
+    try:
+        ddb = boto3.client("dynamodb", region_name=settings.aws_region)
+        ts = int(response.cached_at_unix)
+        run_id = (
+            __import__("datetime").datetime.utcfromtimestamp(ts)
+            .strftime("%Y-%m-%dT%H:%M:%SZ")
+        )
+        ddb.put_item(
+            TableName=_EVAL_HISTORY_TABLE,
+            Item={
+                "partition":     {"S": "eval"},
+                "run_id":        {"S": run_id},
+                "ts":            {"N": str(ts)},
+                "pass_rate":     {"N": f"{response.pass_rate:.4f}"},
+                "passes":        {"N": str(response.passes)},
+                "total":         {"N": str(response.total)},
+                "avg_latency_ms": {"N": str(response.avg_latency_ms)},
+            },
+        )
+    except Exception as e:  # noqa: BLE001
+        log.info("eval history persist skipped: %s", e)
+
+
+def _load_eval_history(limit: int = 30) -> List[Dict[str, Any]]:
+    """Most-recent runs first (DynamoDB Query, scan-index-forward false).
+    Returns an empty list when the table doesn't exist or read fails."""
+    try:
+        ddb = boto3.client("dynamodb", region_name=settings.aws_region)
+        resp = ddb.query(
+            TableName=_EVAL_HISTORY_TABLE,
+            KeyConditionExpression="#p = :p",
+            ExpressionAttributeNames={"#p": "partition"},
+            ExpressionAttributeValues={":p": {"S": "eval"}},
+            ScanIndexForward=False,
+            Limit=max(1, min(int(limit), 100)),
+        )
+        out: List[Dict[str, Any]] = []
+        for item in resp.get("Items", []):
+            out.append({
+                "run_id":        (item.get("run_id") or {}).get("S"),
+                "ts":            int((item.get("ts") or {}).get("N") or 0),
+                "pass_rate":     float((item.get("pass_rate") or {}).get("N") or 0),
+                "passes":        int((item.get("passes") or {}).get("N") or 0),
+                "total":         int((item.get("total") or {}).get("N") or 0),
+                "avg_latency_ms": int((item.get("avg_latency_ms") or {}).get("N") or 0),
+            })
+        return out
+    except Exception as e:  # noqa: BLE001
+        log.info("eval history read skipped: %s", e)
+        return []
 
 
 @router.get("/ops/eval", response_model=EvalResponse)
 def eval_status(run: bool = False) -> EvalResponse:
-    """Return cached eval results, or run live if `run=true` (or cache stale)."""
+    """Return cached eval results, or run live if `run=true` (or cache stale).
+    Always attaches the most recent N runs from durable history so the UI
+    can plot trends without making a second call."""
     now = time.time()
     cached = _eval_cache.get("result")
     if cached and not run and (now - _eval_cache["updated_at"]) < _EVAL_CACHE_TTL_SEC:
+        # Refresh history every read so the trend stays current even with
+        # a warm in-memory cache.
+        cached.history = _load_eval_history(limit=30)
         return cached  # type: ignore[return-value]
 
     rows: List[EvalRow] = []
@@ -344,9 +409,13 @@ def eval_status(run: bool = False) -> EvalResponse:
         avg_latency_ms=int(sum(latencies) / max(len(latencies), 1)),
         cached_at_unix=int(now),
         rows=rows,
+        history=[],
     )
     _eval_cache["updated_at"] = now
     _eval_cache["result"] = response
+    # Persist this run + reload history so the trend includes the new point.
+    _persist_eval_run(response)
+    response.history = _load_eval_history(limit=30)
     return response
 
 

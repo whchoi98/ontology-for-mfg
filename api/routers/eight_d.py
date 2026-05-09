@@ -107,8 +107,15 @@ def _assemble_markdown(inc: dict, draft: dict, *, similar_count: int,
 
 
 def _sse_event(payload: dict) -> dict:
-    """Wrap a JSON payload as an SSE event with a stable event-name."""
-    return {"event": payload.get("type", "message"), "data": json.dumps(payload, ensure_ascii=False)}
+    """Wrap a JSON payload as an SSE event with a stable event-name.
+
+    Thin compat shim around `api.schemas.sse.as_event`; new code should
+    construct typed Pydantic models from `api.schemas.sse` and pass them
+    to `as_event` directly. This dict-form remains for incremental
+    migration of the existing yield sites below.
+    """
+    from api.schemas.sse import as_event
+    return as_event(payload)
 
 
 @router.post("/eight-d")

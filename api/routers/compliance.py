@@ -71,7 +71,10 @@ def _synthesize_component(component_id: str) -> Component:
     )
 
 
-@router.post("/compliance")
+from api.schemas import ComplianceResponse
+
+
+@router.post("/compliance", response_model=ComplianceResponse)
 def compliance(req: ComplianceRequest = Body(...)) -> dict:
     comp = req.component
     synthetic = False

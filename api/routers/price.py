@@ -101,7 +101,10 @@ def _build_subgraph(component_id: str, category: str, offers: list[dict]) -> dic
     return {"nodes": nodes, "edges": edges}
 
 
-@router.post("/price")
+from api.schemas import PriceResponse
+
+
+@router.post("/price", response_model=PriceResponse)
 def price(req: PriceRequest = Body(...)) -> dict:
     offers: list[dict] = []
     try:
