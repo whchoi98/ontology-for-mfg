@@ -1,0 +1,27 @@
+# Build artefacts that must NOT enter the Docker build context — copying a
+# stale web/.next/ into the build stage previously caused Next.js to ship
+# pre-edit bundle JS even after source was fixed (the layer hash didn't
+# change because the source-tree-as-a-whole hash matched).
+web/.next/
+web/node_modules/
+web/tsconfig.tsbuildinfo
+
+# Python build / test caches
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+.venv/
+
+# CDK / infra outputs
+infra-cdk/cdk.out/
+cdk.out/
+
+# Editor / OS noise
+.DS_Store
+*.swp
+
+# Local-only docs/scripts
+graphify-out/
+.claude/
