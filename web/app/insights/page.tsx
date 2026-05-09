@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { api } from "@/lib/api-client";
+import { exportToPdf } from "@/lib/pdf-export";
 import { KpiStrip } from "@/components/KpiStrip";
 import { MarkdownView } from "@/components/MarkdownView";
 import { useActivePersona } from "@/lib/persona-context";
@@ -91,12 +92,65 @@ export default function InsightsPage() {
 
   const maxValue = chart.length > 0 ? Math.max(...chart.map((d) => d.value), 1) : 1;
   const isDone = !loading && (summary || kpis.length > 0 || chart.length > 0);
+  const hasResults = Boolean(summary || kpis.length > 0 || chart.length > 0);
+
+  async function downloadPdf() {
+    if (!hasResults) return;
+    const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const sections = [];
+    if (question) {
+      sections.push({
+        badge: "질문", title: PERSONA_LABEL[active],
+        body: question, accentColor: "#3b82f6",
+      });
+    }
+    if (kpis.length > 0) {
+      sections.push({
+        badge: "KPI", title: `핵심 지표 ${kpis.length}건`,
+        body: kpis.map((k) => `• ${k.label}: ${k.value}${k.delta ? ` (${k.delta})` : ""}`).join("\n"),
+        accentColor: "#10b981",
+      });
+    }
+    if (chart.length > 0) {
+      sections.push({
+        badge: "차트", title: chartTitle || "분포",
+        body: chart.map((d) => `${d.label.padEnd(20)} ${d.value}`).join("\n"),
+        accentColor: "#f59e0b",
+      });
+    }
+    if (summary) {
+      sections.push({
+        badge: "분석", title: "Sonnet 4.6 요약",
+        body: summary, accentColor: "#a855f7",
+      });
+    }
+    await exportToPdf({
+      title: "인사이트 리포트",
+      subtitle: question.slice(0, 80),
+      meta: `${PERSONA_LABEL[active]} · 추출 ${stamp}`,
+      sections,
+      footer: `Ontology MFG · 인사이트 시나리오 · 합성 데이터 · 생성: ${stamp}`,
+      filename: `insights-${Date.now()}`,
+    });
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <ScenarioHeader scenario="C" title="인사이트" tech="Neptune 집계 + Sonnet 4.6 분석 (마크다운 스트리밍) + Code Interpreter 차트 + Cytoscape 드릴다운" />
       <div className="flex-1 mx-auto w-full max-w-4xl px-6 py-6">
-        <h1 className="text-2xl font-bold text-ink-50 mb-1">인사이트</h1>
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h1 className="text-2xl font-bold text-ink-50">인사이트</h1>
+          {hasResults && (
+            <button
+              type="button"
+              onClick={downloadPdf}
+              className="text-xs px-3 py-1.5 rounded-md border border-accent-500/50 bg-accent-500/10 text-accent-200 hover:bg-accent-500/20 transition"
+              title="결과를 PDF로 다운로드"
+            >
+              PDF 다운로드
+            </button>
+          )}
+        </div>
         <p className="text-sm text-ink-400 mb-4">Neptune 집계 + Sonnet 4.6 스트리밍 + Code Interpreter 차트</p>
 
         {!summary && kpis.length === 0 && !loading && (

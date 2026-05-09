@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { api } from "@/lib/api-client";
+import { exportToPdf } from "@/lib/pdf-export";
 import { CytoscapeView } from "@/components/CytoscapeView";
 import { useActivePersona } from "@/lib/persona-context";
 import type { CytoscapeGraph } from "@/lib/types";
@@ -55,12 +56,52 @@ export default function SpecPage() {
     submitSpec();
   }
 
+  async function downloadPdf() {
+    if (candidates.length === 0) return;
+    const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const sections = [
+      {
+        badge: "요구사항", title: PERSONA_LABEL[active],
+        body: requirements || "(공란)", accentColor: "#3b82f6",
+      },
+      ...candidates.map((c, i) => ({
+        badge: `#${i + 1}`,
+        title: c.name ?? c.id,
+        body:
+          `id: ${c.id}\n` +
+          `score: ${c.score != null ? c.score.toFixed(3) : "—"}\n` +
+          `standards: ${c.standards?.join(", ") ?? "—"}`,
+        accentColor: "#10b981",
+      })),
+    ];
+    await exportToPdf({
+      title: "스펙 매칭 결과",
+      subtitle: requirements.slice(0, 80) || undefined,
+      meta: `${PERSONA_LABEL[active]} · 후보 ${candidates.length}건 · 추출 ${stamp}`,
+      sections,
+      footer: `Ontology MFG · 스펙 매치 시나리오 · 합성 데이터 · 생성: ${stamp}`,
+      filename: `spec-match-${Date.now()}`,
+    });
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <ScenarioHeader scenario="D" title="스펙 매치" tech="자연어 요구사항 → BM25 + Cohere KNN 하이브리드 + Bedrock Reranker → 후보 매칭 + 인증/리드타임 비교" />
       <div className="flex-1 mx-auto w-full max-w-7xl px-6 py-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-ink-50 mb-1">부품 규격 매칭</h1>
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <h1 className="text-2xl font-bold text-ink-50">부품 규격 매칭</h1>
+            {candidates.length > 0 && (
+              <button
+                type="button"
+                onClick={downloadPdf}
+                className="text-xs px-3 py-1.5 rounded-md border border-accent-500/50 bg-accent-500/10 text-accent-200 hover:bg-accent-500/20 transition"
+                title="후보 매칭 결과를 PDF로 다운로드"
+              >
+                PDF 다운로드
+              </button>
+            )}
+          </div>
           <p className="text-sm text-ink-400 mb-4">자연어 요구사항 → 후보 부품 + 표준 커버리지 그래프</p>
 
           {candidates.length === 0 && (
