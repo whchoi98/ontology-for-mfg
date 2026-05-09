@@ -114,7 +114,7 @@ export function Sidebar() {
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold text-ink-100 leading-tight truncate">Ontology MFG</div>
-            <div className="text-[10px] text-ink-400 leading-tight truncate">Hi-Tech Demo · v0.5.0</div>
+            <div className="text-[10px] text-ink-400 leading-tight truncate">Hi-Tech Demo · v0.5.1</div>
           </div>
         </div>
         <CompanyLogo />

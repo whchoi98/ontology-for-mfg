@@ -1,5 +1,58 @@
 # CHANGELOG.md
 
+## 0.5.1 — 2026-05-09 (patch)
+
+`/simplify` review pass on 0.5.0 — three review agents (reuse / quality
+/ efficiency) found 11 actionable items, 9 are fixed here. Test suite
+stays at 159/159 green; pure runtime improvements + tightening.
+
+### Performance
+- **`/api/ops/eval` parallelization** — 30 wow queries now run via
+  `ThreadPoolExecutor(max_workers=8)` instead of serial. Wall time drops
+  from ~6–15s to ~1.5–3s. The "라이브 실행 (30 쿼리)" button on the
+  ops console feels comparable to the SSE flows now.
+- **`/api/ops/eval` history cache (30s)** — separate cache for the
+  durable history trend. Previously the 10-min cached fast path was
+  burning a DynamoDB query on every poll; now both paths consult an
+  in-memory cache that busts when a fresh run lands.
+- **Cached AWS client factories** — `api/aws_clients.py` gains
+  `dynamodb()` and `cloudwatch_logs()` (existing factories: bedrock-
+  runtime, bedrock-agent-runtime, secretsmanager, s3). `ops.py` now
+  uses these instead of constructing fresh `boto3.client(...)` per
+  call.
+
+### Correctness
+- **`/api/ops/eval` concurrency lock** — `threading.Lock` around the
+  fresh-run branch prevents two concurrent `run=true` requests from
+  both executing the 30 queries and double-writing the same run id to
+  DynamoDB.
+- **DynamoDB TTL attribute** — eval-history items now carry a `ttl`
+  numeric attribute (90 days) so the table self-prunes when DynamoDB
+  TTL is enabled on it. Prevents unbounded growth.
+
+### Quality
+- **`GuardrailEvent.result`** — `Literal["passed", "blocked"]` (was
+  raw `str`). Matches the rest of `api/schemas/sse.py` discriminator
+  pattern.
+- **`_MODEL_LABELS` constants** — Haiku/Sonnet/Opus chip labels pulled
+  out of `_short_model_label`'s function body into a single table at
+  module top. Future model renames touch one line.
+- **Single SSE serializer** — both `chat.py` and `eight_d.py` now
+  call `api.schemas.sse.as_event()` instead of inline `{event:..., data:
+  json.dumps(...)}` (chat) or a 7-line shim (eight_d). The shim is
+  deleted.
+- **`Candidate` shared type** — `SubstituteCandidate` and `SpecCandidate`
+  unified into one model in `api/schemas/__init__.py` with both names
+  preserved as aliases for call-site clarity.
+
+### Skipped (review notes)
+- `_LooseModel` (response shapes) vs `_LooseEvent` (SSE discriminators)
+  — different conceptual roles, kept separate.
+- `_InlineExecutor` test helper — single use, will promote to conftest
+  when a second SSE test needs it.
+- DynamoDB helper extraction across `memory.py` + `ops.py` — valid but
+  out of scope; deferred to ADR-009 + `api/services/ddb.py`.
+
 ## 0.5.0 — 2026-05-09
 
 Closes the four broader recommendations from the harness-eval Full
