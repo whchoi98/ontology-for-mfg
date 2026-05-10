@@ -250,10 +250,17 @@ export default function LanePage() {
             </div>
           ) : (
             <SCMMap
-              lanes={lanes}
-              highlights={{ dropped: droppedIds, added: addedIds }}
-              modeFilter={modeFilter}
-              regFilter={regFilter}
+              lanes={
+                lanes.filter((l) => {
+                  if (modeFilter.size > 0 && !modeFilter.has(l.mode)) return false;
+                  if (regFilter.size > 0 && !(l.regulations ?? []).some((r) => regFilter.has(r))) {
+                    return false;
+                  }
+                  return true;
+                })
+              }
+              droppedIds={droppedIds}
+              addedIds={addedIds}
             />
           )}
         </div>

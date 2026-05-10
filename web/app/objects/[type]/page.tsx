@@ -260,7 +260,7 @@ export default function ObjectTypePage({ params }: { params: { type: string } })
             <div className="flex-1 min-h-[600px]">
               <CytoscapeView
                 graph={detail.subgraph}
-                wowNodeIds={[selectedId ?? ""]}
+                anchorIds={[selectedId ?? ""]}
                 onNodeTap={handleNodeTap}
               />
             </div>

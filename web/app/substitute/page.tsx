@@ -249,7 +249,7 @@ export default function SubstitutePage() {
 
         {/* ═══ Right: graph ═══ */}
         <aside className="border-l border-ink-700 bg-ink-900 p-3 min-h-[400px] xl:min-h-0">
-          {result ? <CytoscapeView graph={result.subgraph} wowNodeIds={[result.original.id]} /> : (
+          {result ? <CytoscapeView graph={result.subgraph} anchorIds={[result.original.id]} /> : (
             <div className="h-full flex items-center justify-center text-xs text-ink-500 italic">그래프</div>
           )}
         </aside>
