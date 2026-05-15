@@ -6,6 +6,7 @@ import { PersonaProvider } from '@/lib/persona-context';
 import { Sidebar } from '@/components/Sidebar';
 import { PersonaSwitch } from '@/components/PersonaSwitch';
 import { GuidedTour } from '@/components/GuidedTour';
+import FloatingChat from '@/components/FloatingChat';
 
 // Pretendard isn't on Google Fonts and the GitHub release ZIP exceeds
 // CDN limits — using Noto Sans KR (Google Fonts CDN-friendly) for reliable
@@ -26,18 +27,25 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko" className={`${pretendard.variable} dark`}>
-      <body className="font-sans antialiased min-h-screen bg-ink-950 text-ink-200">
+      <body className="font-sans antialiased h-screen overflow-hidden bg-ink-950 text-ink-200">
         <PersonaProvider>
-          <div className="flex min-h-screen">
+          <div className="flex h-screen overflow-hidden">
             <Sidebar />
-            <main className="flex-1 min-w-0 overflow-x-hidden relative">
-              <div className="absolute top-3 right-6 z-30 flex items-center gap-2">
+            <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+              {/* Top bar — fixed-height flex sibling (not absolute) so it
+                  reserves vertical space and never overlaps page headers
+                  like ScenarioHeader. Pattern mirrored from ontology-for-gcc. */}
+              <div className="flex items-center justify-end gap-3 px-6 h-12 bg-ink-950/85 backdrop-blur border-b border-ink-800/60 shrink-0">
                 <GuidedTour />
                 <PersonaSwitch />
               </div>
-              {children}
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                {children}
+              </div>
             </main>
           </div>
+          {/* Manny — global floating chatbot, available on every page. */}
+          <FloatingChat />
         </PersonaProvider>
       </body>
     </html>

@@ -1,5 +1,34 @@
 # CHANGELOG.md
 
+## 0.5.4 — 2026-05-15 (Manny floating chatbot + top bar fix)
+
+Port of the global floating chatbot pattern from `ontology-for-gcc` and
+fix for the layout top bar overlap.
+
+### Features
+- **`web/components/FloatingChat.tsx`** — Manny (매니), the manufacturing
+  mascot chatbot. Bottom-right fixed button on every page → slide-in
+  right drawer with persona-aware welcome prompts (5 sample queries per
+  buyer/engineer/quality/scm/plant), multi-turn chat against `/api/chat`,
+  tool-call footer, and v0.5.3 follow-up chips. ESC closes; persona
+  switch resets the session.
+- Naming: "Manny" mirrors the gcc/mfg sister-project mascot pattern
+  (Cally ↔ Manny). Branded with the existing mfg accent-blue gradient +
+  wow-orange AI badge.
+
+### Fixes
+- **Top bar no longer overlaps content** — `web/app/layout.tsx` was using
+  `absolute top-3 right-6` for the GuidedTour + PersonaSwitch chip row,
+  which overlapped every page's ScenarioHeader. Switched to gcc's flex
+  pattern: a fixed-height (`h-12`) sibling above `{children}` inside a
+  `flex h-screen overflow-hidden` shell.
+
+### Not ported (from gcc)
+- Popup-window / Chrome iframe-modal fallback for `/cally` — gcc needs
+  this because the chat surface IS a separate popup; mfg's primary chat
+  surface is the full `/chat` page, so the drawer alone is enough.
+- `StationChatPanel` — gas-station-domain specific, no mfg analogue.
+
 ## 0.5.3 — 2026-05-15 (follow-up chips on /chat)
 
 Port of the headline UX feature from `ontology-for-gcc`: after every chat

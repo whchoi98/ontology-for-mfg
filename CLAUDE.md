@@ -2,7 +2,7 @@
 
 Project memory for Claude Code on **ontology-for-mfg** — a Hi-Tech manufacturing
 ontology PoC demo (AMZN Tech, Korean / English UI). Mirrors the sister project
-`ontology-for-retail`. Currently at **v0.5.3**.
+`ontology-for-retail`. Currently at **v0.5.4**.
 
 ## Overview
 
