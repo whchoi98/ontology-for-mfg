@@ -1,5 +1,47 @@
 # CHANGELOG.md
 
+## 0.5.5 — 2026-05-15 (Manny popup + SSE stream hardening)
+
+Manny launcher now opens a dedicated chat surface (popup window or
+in-page modal) and the chat SSE generator guarantees a terminal event
+even on mid-stream failure.
+
+### Features
+- **`/manny` route** — chat-only popup page (no sidebar / top bar /
+  floating button). LayoutShell branches on pathname to suppress chrome.
+  Full chat surface with persona switcher, sample queries, follow-up
+  chips, and same `/api/chat` backend.
+- **UA-branching launcher** — `FloatingChat.tsx` rewritten:
+  - Chromium (Chrome / Edge / Brave / Opera) → in-page iframe modal
+    targeting `/manny`. Same-origin → Cognito + SSE both work.
+  - Firefox / Safari → `window.open` with popup features (480×760).
+  - Popup blocked or downgraded to tab → in-page modal fallback.
+  - ESC closes modal.
+- **`LayoutShell.tsx`** — client-side chrome dispatcher. New file; moves
+  the sidebar/top-bar/FloatingChat rendering out of `app/layout.tsx`
+  (which is a server component) so we can `usePathname()` to skip
+  chrome on `/manny`.
+
+### Reliability
+- **`/api/chat` mid-stream exception hardening** — `chat.py`'s SSE
+  generator now wraps the `runner.run_stream()` loop in
+  `try/except/finally`. Any unexpected exception (e.g. `as_event`
+  serializer failure, follow-up call corner case) emits a synthetic
+  `error` + `stop` event so the client never sees a silent connection
+  drop. Stack trace logged to CloudWatch via `log.exception(...)`.
+- **`stop` event always reaches the client** — even if the inner loop
+  exits without emitting one (`stream_end` reason), the `finally` block
+  guarantees it. Mirrors the `final` event pattern from gcc.
+
+### Notes
+- **CloudFront SSE invariants already in place** — mfg's edge stack
+  attaches Lambda@Edge only at `VIEWER_REQUEST` (auth), never at
+  `ORIGIN_RESPONSE`, so CloudFront does not buffer the chunked SSE
+  body. SSE compression disabled on `/api/*` paths (commit `d480108`).
+- **maxTokens per scenario** — chat uses `2048` (`agent.py:92`);
+  separate from 8D writer (`1500`) and insights. Stop-reason
+  `max_tokens` is therefore a real truncation signal, not a default.
+
 ## 0.5.4 — 2026-05-15 (Manny floating chatbot + top bar fix)
 
 Port of the global floating chatbot pattern from `ontology-for-gcc` and

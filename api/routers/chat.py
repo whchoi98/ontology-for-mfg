@@ -191,23 +191,46 @@ def chat(req: ChatRequest = Body(...)):
         # Bedrock answers cap well under the 8K maxTokens budget.
         assistant_chunks: list[str] = []
         emitted_followups = False
-        for event in runner.run_stream(req.msg, session_id=req.session_id):
-            etype = event.get("type")
-            if etype == "delta":
-                text = event.get("text")
-                if text:
-                    assistant_chunks.append(text)
-            elif etype == "stop" and not emitted_followups:
-                # Emit suggested_followups BEFORE the terminal stop so clients
-                # that close on `stop` still pick them up. One-shot: even on
-                # max_rounds + retry the user sees a single chip set.
-                emitted_followups = True
-                answer = "".join(assistant_chunks)
-                suggestions = generate_followups(answer, req.persona, req.msg)
-                if suggestions:
-                    yield as_event({
-                        "type": "suggested_followups",
-                        "items": suggestions,
-                    })
-            yield as_event(event)
+        terminated = False
+        try:
+            for event in runner.run_stream(req.msg, session_id=req.session_id):
+                etype = event.get("type")
+                if etype == "delta":
+                    text = event.get("text")
+                    if text:
+                        assistant_chunks.append(text)
+                elif etype == "stop" and not emitted_followups:
+                    # Emit suggested_followups BEFORE the terminal stop so
+                    # clients that close on `stop` still pick them up.
+                    # One-shot: even on max_rounds + retry the user sees a
+                    # single chip set.
+                    emitted_followups = True
+                    answer = "".join(assistant_chunks)
+                    suggestions = generate_followups(answer, req.persona, req.msg)
+                    if suggestions:
+                        yield as_event({
+                            "type": "suggested_followups",
+                            "items": suggestions,
+                        })
+                if etype == "stop":
+                    terminated = True
+                yield as_event(event)
+        except Exception as e:
+            # Mid-stream exception — the client otherwise sees a silent
+            # connection close and can't tell "done" from "crashed". Emit a
+            # synthetic error + stop so the UI can render a clean failure
+            # state, then re-log with stack trace for CloudWatch debugging.
+            log.exception("chat.gen() crashed mid-stream: %s", type(e).__name__)
+            yield as_event({
+                "type": "error",
+                "name": "chat_stream",
+                "content": f"채팅 스트림 처리 중 오류: {type(e).__name__}",
+            })
+            yield as_event({"type": "stop", "reason": "stream_error"})
+            terminated = True
+        finally:
+            # Belt-and-suspenders: guarantee at least one stop event reaches
+            # the client even if the inner loop exits without emitting one.
+            if not terminated:
+                yield as_event({"type": "stop", "reason": "stream_end"})
     return EventSourceResponse(gen())
