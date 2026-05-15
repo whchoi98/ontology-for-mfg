@@ -9,7 +9,7 @@ from api.middleware_auth import CognitoBearerAuth
 logging.basicConfig(level=settings.log_level)
 log = logging.getLogger("mfg.api")
 
-app = FastAPI(title="ontology-mfg api", version="0.5.5")
+app = FastAPI(title="ontology-mfg api", version="0.5.6")
 
 app.add_middleware(
     CORSMiddleware,

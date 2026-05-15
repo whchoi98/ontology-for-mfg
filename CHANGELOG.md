@@ -1,5 +1,33 @@
 # CHANGELOG.md
 
+## 0.5.6 — 2026-05-15 (token-level streaming)
+
+Chat responses now paint incrementally token-by-token instead of arriving
+as one block when the model finishes. The previous implementation buffered
+the full Bedrock response and emitted a single delta — even short answers
+felt slow. gcc has always done this right; we now match.
+
+### Performance / UX
+- **`api/services/agent.py` switched from `converse(...)` to
+  `converse_stream(...)`** — every `contentBlockDelta` event is forwarded
+  to the SSE client as its own `delta` event the moment it arrives.
+  Time-to-first-byte goes from ~2-5s (whole-answer wait) to ~300-600ms
+  (first token).
+- **Tool input streaming** — `toolUse.input` arrives as partial JSON
+  chunks across multiple `contentBlockDelta` events; accumulated and
+  parsed at `messageStop`. Malformed streams fall back to `{}` with a
+  warning instead of crashing the agent loop.
+
+### Tests
+- 172 → **175** passing. Updated `test_agent_service.py` to mock the
+  streaming event shape (`{"stream": [...]}`); added explicit tests for
+  per-chunk delta emission and malformed-JSON tool-input fallback.
+
+### Notes
+- The mfg edge stack already excludes `ORIGIN_RESPONSE` Lambda@Edge from
+  `/api/*` paths, so CloudFront does NOT buffer the chunked SSE body. No
+  edge changes required for this to work end-to-end.
+
 ## 0.5.5 — 2026-05-15 (Manny popup + SSE stream hardening)
 
 Manny launcher now opens a dedicated chat surface (popup window or

@@ -1,13 +1,22 @@
 # api/services/agent.py
-"""AgentCore-style tool-use orchestrator using Bedrock Converse API.
+"""AgentCore-style tool-use orchestrator using Bedrock Converse Stream API.
 
 Streams 'phase / delta / tool_call / tool_result / guardrail / log / error / stop'
 events compatible with retail's SSE event vocabulary so the web frontend can
 render in real time.
 
+**Token-level streaming (v0.5.6)**: Bedrock `converse_stream` yields
+`contentBlockDelta` events as the model emits tokens. We forward each chunk
+as its own `delta` event the moment it arrives, so the UI paints text
+incrementally and the user feels the response is "live" — comparable to
+gcc's chat experience. The previous implementation used the blocking
+`converse(...)` call and only yielded after the full response was buffered,
+which made even short answers feel slow.
+
 Tool callback signature: (name: str, args: dict) -> dict (any JSON-serializable).
 """
 from __future__ import annotations
+import json
 import logging
 import time
 from collections import deque
@@ -95,9 +104,9 @@ class AgentRunner:
                 req["toolConfig"] = {"tools": self._tool_specs()}
 
             try:
-                resp = bedrock_runtime().converse(**req)
+                stream_resp = bedrock_runtime().converse_stream(**req)
             except Exception as e:
-                log.error("Bedrock converse failed (round %d, model=%s): %s",
+                log.error("Bedrock converse_stream failed (round %d, model=%s): %s",
                            round_idx, settings.sonnet_model, e, exc_info=True)
                 yield {"type": "error",
                         "name": "bedrock",
@@ -112,19 +121,71 @@ class AgentRunner:
                 yield {"type": "stop", "reason": "bedrock_error"}
                 return
 
-            msg = resp["output"]["message"]
-            content = msg.get("content", [])
-            tool_uses = [c["toolUse"] for c in content if "toolUse" in c]
-            text_blocks = [c["text"] for c in content if "text" in c]
-            for t in text_blocks:
-                yield {"type": "delta", "text": t}
-            messages.append(msg)
-            stop_reason = resp.get("stopReason")
-            log.info("agent round=%d stop=%s text_blocks=%d tool_uses=%d",
-                      round_idx, stop_reason, len(text_blocks), len(tool_uses))
+            # Stream consumption — yield delta per token chunk so the UI paints
+            # incrementally. Tool inputs arrive as JSON streaming chunks
+            # (toolUse.input is a partial string per delta) and must be
+            # accumulated, then JSON-parsed at messageStop.
+            text_chunks: list[str] = []
+            tool_buf: list[dict[str, Any]] = []
+            stop_reason: str | None = None
+
+            for ev in stream_resp.get("stream", []):
+                if "contentBlockStart" in ev:
+                    start = ev["contentBlockStart"].get("start") or {}
+                    if "toolUse" in start:
+                        tu = start["toolUse"]
+                        tool_buf.append({
+                            "name": tu.get("name", ""),
+                            "toolUseId": tu.get("toolUseId", ""),
+                            "input_raw": "",
+                        })
+                elif "contentBlockDelta" in ev:
+                    delta = ev["contentBlockDelta"].get("delta") or {}
+                    if "text" in delta:
+                        chunk = delta["text"]
+                        text_chunks.append(chunk)
+                        yield {"type": "delta", "text": chunk}
+                    elif "toolUse" in delta and tool_buf:
+                        # toolUse.input streams as a partial JSON string —
+                        # accumulate, parse after the block closes.
+                        tool_buf[-1]["input_raw"] += delta["toolUse"].get("input", "")
+                elif "messageStop" in ev:
+                    stop_reason = ev["messageStop"].get("stopReason")
+
+            # Parse accumulated tool input strings into dicts.
+            tool_uses: list[dict[str, Any]] = []
+            for tc in tool_buf:
+                raw = tc["input_raw"]
+                try:
+                    parsed = json.loads(raw) if raw else {}
+                except json.JSONDecodeError:
+                    log.warning("tool %s input JSON parse failed; raw=%r", tc["name"], raw[:200])
+                    parsed = {}
+                tool_uses.append({
+                    "name": tc["name"],
+                    "toolUseId": tc["toolUseId"],
+                    "input": parsed,
+                })
+
+            # Rebuild the assistant message for Bedrock's next-turn context.
+            # MUST include text + toolUse blocks so the next turn's toolResult
+            # validates (toolUse count must match toolResult count).
+            assistant_content: list[dict[str, Any]] = []
+            if text_chunks:
+                assistant_content.append({"text": "".join(text_chunks)})
+            for tc in tool_uses:
+                assistant_content.append({"toolUse": {
+                    "toolUseId": tc["toolUseId"],
+                    "name": tc["name"],
+                    "input": tc["input"],
+                }})
+            if assistant_content:
+                messages.append({"role": "assistant", "content": assistant_content})
+
+            log.info("agent round=%d stop=%s text_chunks=%d tools=%d",
+                      round_idx, stop_reason, len(text_chunks), len(tool_uses))
 
             if stop_reason == "end_turn":
-                # Phase — output guardrail (visibility event for UI)
                 yield {"type": "guardrail", "name": "output_check", "result": "passed",
                         "content": "응답 가드레일 통과"}
                 yield {"type": "stop", "reason": "end_turn"}
@@ -133,13 +194,12 @@ class AgentRunner:
             if tool_uses:
                 yield {"type": "phase", "phase": "tool_use"}
                 tool_results = []
-                for tu in tool_uses:
-                    name = tu["name"]
-                    args = tu.get("input", {})
-                    tool_id = tu["toolUseId"]
+                for tc in tool_uses:
+                    name = tc["name"]
+                    args = tc["input"]
+                    tool_id = tc["toolUseId"]
                     record_trace(session_id=session_id, tool=name, args=args)
                     yield {"type": "tool_call", "name": name, "args": args}
-                    # Lookup fn — tool tuples may be 3 or 4 elements
                     fn = next((t[2] for t in self.tools if t[0] == name), None)
                     if not fn:
                         result: dict = {"error": f"unknown tool {name}"}
