@@ -1,4 +1,12 @@
-.PHONY: data test clean load load-schema load-graph load-search
+.PHONY: data test clean load load-schema load-graph load-search venv
+
+# ── developer venv (Python 3.12 per pyproject.toml) ───────────────────────────
+venv:
+	@command -v python3.12 >/dev/null 2>&1 || { echo "python3.12 required; on AL2023: sudo dnf install -y python3.12"; exit 1; }
+	python3.12 -m venv .venv
+	. .venv/bin/activate && pip install -U pip && pip install -r requirements.txt -r requirements-dev.txt
+	@echo "Run: source .venv/bin/activate"
+
 
 # ── synthetic data generation ─────────────────────────────────────────────────
 data:

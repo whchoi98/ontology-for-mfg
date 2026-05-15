@@ -18,3 +18,8 @@ web/node_modules/
 # graphify CLI raw output — the snapshot we ship lives at
 # web/public/codegraph/ (committed) so the Web container serves it.
 graphify-out/
+
+# Local agent / eval artifacts (per-developer, not part of the project)
+.claude/
+.harness-eval/
+web/tsconfig.tsbuildinfo

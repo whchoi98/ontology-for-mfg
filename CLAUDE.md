@@ -2,7 +2,7 @@
 
 Project memory for Claude Code on **ontology-for-mfg** — a Hi-Tech manufacturing
 ontology PoC demo (AMZN Tech, Korean / English UI). Mirrors the sister project
-`ontology-for-retail`. Currently at **v0.4.0**.
+`ontology-for-retail`. Currently at **v0.5.2**.
 
 ## Overview
 
@@ -118,8 +118,10 @@ for the full deploy procedure with safety checks.
 - **Read-only Cypher gateway** — `_tool_neptune` in `api/routers/chat.py`
   rejects write/destructive Cypher via a regex deny-list before forwarding to
   `run_cypher`. ADR-002 has the rationale; do not weaken without review.
-- **Persona** — single `useActivePersona()` context drives 12 scenarios; the
-  legacy `(buyer)/(engineer)/...` route groups are dead and unlinked.
+- **Persona** — single `useActivePersona()` context drives 12 scenarios.
+  Legacy `(buyer)/(engineer)/(quality)/(scm)/(plant)` route groups were
+  removed in v0.5.2 (commit pending). Do not reintroduce per-persona route
+  directories — the active persona is a runtime concern, not a routing one.
 - **PDF export** — single helper `web/lib/pdf-export.ts`. Per-page sections
   use `accentColor` for category color-coding. Add new exports there, not
   by inlining jsPDF.
@@ -150,9 +152,15 @@ for the full deploy procedure with safety checks.
 ## Testing & CI
 
 - `pytest` from project root — no integration AWS calls in unit suites
+- `tests/integration/` — cross-cutting contract tests (12-scenario wiring,
+  Pydantic `response_model` coverage); runs in the same suite, no AWS needed
 - TypeScript: `cd web && ./node_modules/.bin/tsc --noEmit` — strict mode
+- GitHub Actions (`.github/workflows/ci.yml`) — api/web/cdk parallel jobs on
+  push/PR to main; mirror locally with `make test && cd web && tsc --noEmit`
 - Bedrock invocations require `VscodeServerStack-VSCode-Role` IAM credentials
   on the dev EC2 host
+- **Python 3.12 only** — `pyproject.toml` declares `requires-python = ">=3.12"`.
+  AL2023: `sudo dnf install -y python3.12` then `make venv` for the dev venv.
 
 ## Working with Claude Code on This Project
 

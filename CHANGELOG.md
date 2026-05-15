@@ -1,5 +1,45 @@
 # CHANGELOG.md
 
+## 0.5.2 — 2026-05-15 (cleanup + env alignment)
+
+Project-analysis pass: removed dead routes, aligned Python toolchain to the
+declared 3.12, added cross-cutting integration coverage, and wired CI.
+
+### Removed
+- **5 legacy persona route groups** — `web/app/(buyer|engineer|quality|scm|plant)/`
+  were dead and unlinked (sidebar drives to canonical `/search`, `/insights`,
+  etc.); `tsc --noEmit` confirms zero external references. Cuts ~30 stale
+  `page.tsx` files. CLAUDE.md previously flagged these as "dead and unlinked".
+
+### Environment
+- **`pyproject.toml`** — declares `requires-python = ">=3.12"` and centralizes
+  ruff/black/mypy/pytest config (was scattered or missing). Locks the
+  toolchain that CLAUDE.md mandates.
+- **`requirements.txt`** — adds `python-jose[cryptography]`, `sse-starlette`,
+  pins `starlette<0.42`. These were de-facto dependencies of `api/main.py`
+  but missing from the manifest; fresh 3.12 envs broke without them.
+- **`make venv`** target — one-shot Python 3.12 venv bootstrap.
+
+### Tests
+- **`tests/integration/test_scenario_contracts_e2e.py`** — locks v0.5.0
+  contract work: every sync scenario endpoint must declare a Pydantic
+  `response_model`, all 12 routes must be wired, OpenAPI metadata must be
+  non-empty. Fails fast on contract regressions.
+- 159 → **163** passing under Python 3.12.
+
+### CI
+- **`.github/workflows/ci.yml`** — three parallel jobs on push/PR to main:
+  api (pytest 3.12 + ruff + black), web (tsc + Next build), cdk (Jest
+  invariants). Closes the gap CLAUDE.md never had to fill while the demo
+  was hand-deployed.
+
+### Harness-eval
+- Re-scored against the standard checklist: 5/16 → 7/16 PASS. The unchanged
+  overall (1.6/F) is expected — the standard rubric measures Claude Code
+  plugin adoption (hooks/skills/agents/deny-list), which is orthogonal to
+  the manufacturing PoC scope. Full multi-agent eval (the rubric that
+  produced the v0.4.0 7.8/B) needs separate re-run.
+
 ## 0.5.1 — 2026-05-09 (patch)
 
 `/simplify` review pass on 0.5.0 — three review agents (reuse / quality

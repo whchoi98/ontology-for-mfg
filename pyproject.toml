@@ -1,0 +1,32 @@
+[project]
+name = "ontology-for-mfg"
+version = "0.5.2"
+description = "Hi-Tech manufacturing ontology PoC — 22-class knowledge graph + 12 scenarios + agentic AI"
+requires-python = ">=3.12"
+readme = "README.md"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
+asyncio_mode = "strict"
+filterwarnings = [
+    "ignore::DeprecationWarning:requests_aws4auth.*",
+    "ignore::DeprecationWarning:fastapi.*",
+]
