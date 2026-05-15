@@ -155,6 +155,22 @@ for the full deploy procedure with safety checks.
 - **AOSS hides version** — `GET /` and `_cluster/health` return 404 by
   design. CloudWatch `AWS/AOSS` namespace has no `EngineVersion` dimension.
 
+## Version strings (release sync targets)
+
+When bumping the version, **these three files must be updated together**
+— otherwise the deployed UI keeps showing the old version even though
+CHANGELOG/git-tag advanced:
+
+| File | Pattern |
+|------|---------|
+| `pyproject.toml` | `version = "x.y.z"` |
+| `api/main.py` | `FastAPI(title="ontology-mfg api", version="x.y.z")` |
+| `web/components/Sidebar.tsx` | `Hi-Tech Demo · vx.y.z` (around line 117) |
+
+The `release` skill's "Sync runtime version strings" step targets exactly
+these. After updating, container redeploy is required for users to see
+the new version (see `docs/runbooks/deploy-production.md`).
+
 ## Testing & CI
 
 - `pytest` from project root — no integration AWS calls in unit suites
