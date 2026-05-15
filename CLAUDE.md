@@ -2,7 +2,7 @@
 
 Project memory for Claude Code on **ontology-for-mfg** — a Hi-Tech manufacturing
 ontology PoC demo (AMZN Tech, Korean / English UI). Mirrors the sister project
-`ontology-for-retail`. Currently at **v0.5.2**.
+`ontology-for-retail`. Currently at **v0.5.3**.
 
 ## Overview
 
@@ -108,9 +108,15 @@ for the full deploy procedure with safety checks.
   compliance) and `max-w-7xl mx-auto` (wide-grid: search, spec, substitute,
   price). `/lane`, `/objects/[type]`, `/codegraph` use full-width by design.
 - **SSE for long-running Bedrock** — `/chat`, `/eight-d`, `/insights` use
-  `EventSourceResponse` with phase / phase_done / delta / result / stop event
-  vocabulary. CloudFront origin compression is **disabled** for SSE paths
-  (commit `d480108`).
+  `EventSourceResponse` with phase / phase_done / delta / result /
+  suggested_followups / stop event vocabulary. CloudFront origin
+  compression is **disabled** for SSE paths (commit `d480108`).
+- **Follow-up suggestions on /chat** — after every assistant turn, the
+  chat router calls `api/services/followups.py` (Haiku 4.5, 300 tokens) to
+  generate 3 short Korean follow-up questions tuned to the active persona's
+  KPI tone. Emitted as a `suggested_followups` SSE event before `stop`;
+  failures degrade to []. Web UI renders clickable chips below the last
+  assistant message. Pattern ported from `ontology-for-gcc` (v0.5.3).
 - **Bedrock timeout safety net** — Every Bedrock-backed handler bounds the
   call with `concurrent.futures.ThreadPoolExecutor.submit().result(timeout=25)`
   and falls back to a deterministic template; see `_BEDROCK_BUDGET_S` in

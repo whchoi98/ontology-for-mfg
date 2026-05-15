@@ -12,6 +12,7 @@ from api.services.neptune import get_neptune
 from api.services.kb import retrieve_kb
 from api.services.compliance_engine import check_component
 from api.services.memory import save_fact
+from api.services.followups import generate as generate_followups
 
 router = APIRouter(tags=["chat"])
 log = logging.getLogger("mfg.chat")
@@ -185,6 +186,28 @@ def chat(req: ChatRequest = Body(...)):
     )
 
     def gen():
+        # Capture streamed assistant deltas so we can generate follow-up
+        # suggestions from the final response. Buffer is tiny (few KB);
+        # Bedrock answers cap well under the 8K maxTokens budget.
+        assistant_chunks: list[str] = []
+        emitted_followups = False
         for event in runner.run_stream(req.msg, session_id=req.session_id):
+            etype = event.get("type")
+            if etype == "delta":
+                text = event.get("text")
+                if text:
+                    assistant_chunks.append(text)
+            elif etype == "stop" and not emitted_followups:
+                # Emit suggested_followups BEFORE the terminal stop so clients
+                # that close on `stop` still pick them up. One-shot: even on
+                # max_rounds + retry the user sees a single chip set.
+                emitted_followups = True
+                answer = "".join(assistant_chunks)
+                suggestions = generate_followups(answer, req.persona, req.msg)
+                if suggestions:
+                    yield as_event({
+                        "type": "suggested_followups",
+                        "items": suggestions,
+                    })
             yield as_event(event)
     return EventSourceResponse(gen())

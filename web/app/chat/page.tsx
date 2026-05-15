@@ -70,12 +70,18 @@ export default function ChatPage() {
   const [streaming, setStreaming] = useState(false);
   const [toolLog, setToolLog] = useState<{ tool: string; input: unknown }[]>([]);
   const [phases, setPhases] = useState<Phase[]>([]);
+  const [followups, setFollowups] = useState<string[]>([]);
   const cancelRef = useRef<(() => void) | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Generate a stable session id on mount (client-only — crypto.randomUUID is browser-safe in Next 14).
+  // Persona change → new session + clean slate so the user sees an honest
+  // restart (sample prompts re-appear, no stale followups carrying over).
   useEffect(() => {
     setSessionId(`mfg_${active}_${(globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36))}`);
+    setMessages([]);
+    setToolLog([]);
+    setPhases([]);
+    setFollowups([]);
   }, [active]);
 
   // Auto-scroll to bottom as new tokens arrive
@@ -92,6 +98,7 @@ export default function ChatPage() {
     setStreaming(true);
     setToolLog([]);
     setPhases([]);
+    setFollowups([]);
 
     let assistantText = "";
     const sessionToolLogs: { tool: string; input: unknown }[] = [];
@@ -140,6 +147,9 @@ export default function ChatPage() {
           if (last?.role !== "assistant") return m;
           return [...m.slice(0, -1), { ...last, text: assistantText, toolLogs: [...sessionToolLogs] }];
         });
+      } else if (ev.type === "suggested_followups") {
+        const items = Array.isArray(ev.items) ? (ev.items as unknown[]).map(String) : [];
+        setFollowups(items.slice(0, 3));
       } else if (ev.type === "stop" || ev.type === "done") {
         setStreaming(false);
       }
@@ -359,6 +369,28 @@ export default function ChatPage() {
                   : <MarkdownView text={m.text || (streaming ? "…" : "")} />}
               </div>
             ))}
+
+            {/* Suggested follow-up chips — only after the stream completes and
+                the model returned 1–3 items. Click sends as the next turn. */}
+            {!streaming && followups.length > 0 && (
+              <div className="mr-12 pl-1">
+                <div className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold mb-2">
+                  이어서 물어볼 만한 질문
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {followups.map((q, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => sendMessage(q)}
+                      className="text-left text-xs px-3 py-1.5 rounded-full border border-accent-500/40 bg-accent-500/10 text-accent-200 hover:border-accent-400 hover:bg-accent-500/20 transition"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

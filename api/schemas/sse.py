@@ -112,12 +112,20 @@ class StopEvent(_LooseEvent):
     reason: Optional[str] = None
 
 
+class SuggestedFollowupsEvent(_LooseEvent):
+    """3 short Korean follow-up questions appended right before /chat's stop
+    event. The web UI renders these as clickable chips that send the picked
+    question as the next user turn. See api/services/followups.py."""
+    type: Literal["suggested_followups"] = "suggested_followups"
+    items: List[str] = Field(default_factory=list)
+
+
 # Union for type-checking emit functions
 SseEvent = Union[
     PhaseEvent, PhaseDoneEvent, DeltaEvent,
     ToolCallEvent, ToolResultEvent,
     GuardrailEvent, LogEvent, ErrorEvent,
-    ResultEvent, StopEvent,
+    ResultEvent, StopEvent, SuggestedFollowupsEvent,
 ]
 
 

@@ -1,5 +1,40 @@
 # CHANGELOG.md
 
+## 0.5.3 — 2026-05-15 (follow-up chips on /chat)
+
+Port of the headline UX feature from `ontology-for-gcc`: after every chat
+turn, the agent suggests 3 short Korean follow-up questions tuned to the
+active persona's domain KPIs. Click → sent as the next user turn.
+
+### Features
+- **`api/services/followups.py`** — Bedrock Haiku 4.5 generator (300
+  tokens, temperature 0.7, ~600ms p50). Persona tone table maps each of
+  the 5 mfg personas (buyer / engineer / quality / scm / plant) to its
+  domain KPIs from the 22-class ontology. Empty / failed calls degrade to
+  `[]` — never propagated into the SSE stream.
+- **`suggested_followups` SSE event** — emitted by `/api/chat` immediately
+  before `stop`, with `items: string[]`. Added to the Pydantic
+  discriminator union in `api/schemas/sse.py` so the wire contract stays
+  typed.
+- **Chat UI chips** (`web/app/chat/page.tsx`) — clickable rounded buttons
+  below the last assistant response, only visible when not streaming and
+  the model returned 1–3 items. Click → `sendMessage(q)`. Cleared on
+  persona switch, new turn, and empty results.
+
+### Tests
+- 163 → **172** passing. New: `tests/api/services/test_followups.py` (7
+  cases — persona coverage, parser bullet/length filters, empty-input
+  short-circuit, Bedrock failure isolation, unknown-persona fallback) +
+  2 new SSE integration tests in `tests/api/routers/test_chat.py`.
+
+### Not ported (from gcc)
+- `ChatThread` / `ToolCallPanel` component extraction — current chat
+  inlines these and the existing layout works.
+- `AgentCore Memory write_event` — mfg's `services/memory.py` already
+  covers session-scoped facts; full short/long namespace split deferred.
+- `services/persona.py` KPI registry — followup tones serve as the SSOT
+  for now; if a second router needs them, promote to a registry then.
+
 ## 0.5.2 — 2026-05-15 (cleanup + env alignment)
 
 Project-analysis pass: removed dead routes, aligned Python toolchain to the
