@@ -45,8 +45,8 @@ ontology PoC demo (AMZN Tech, Korean / English UI). Mirrors the sister project
 │   ├── config.py         Settings (env-driven, validated at import)
 │   └── main.py           FastAPI app wiring + middleware
 ├── web/                  Next.js 14 App Router
-│   ├── app/              Routes — 12 scenarios + objects/[type] + ops/[area]
-│   ├── components/       Sidebar, ScenarioHeader, CytoscapeView, MarkdownView
+│   ├── app/              Routes — 12 scenarios + objects/[type] + ops/[area] + /manny popup chat
+│   ├── components/       LayoutShell, Sidebar, ScenarioHeader, CytoscapeView, FloatingChat, MarkdownView
 │   ├── lib/              api-client, persona-context, pdf-export helper
 │   └── public/logos/     AWS + 3 demo logos for sidebar preset cycler
 ├── data/
@@ -62,7 +62,10 @@ ontology PoC demo (AMZN Tech, Korean / English UI). Mirrors the sister project
 │   ├── decisions/ADR-*.md    (created by /sync-docs)
 │   ├── runbooks/*.md         (created by /sync-docs)
 │   └── deploy-logs/          Raw deploy snapshots (use runbooks instead)
-├── tests/                pytest — services, routers, data generation
+├── tests/                pytest — services, routers, integration, data generation
+│   └── integration/      Cross-cutting contract tests (12-scenario wiring + Pydantic models)
+├── .github/workflows/    CI — api (pytest 3.12) · web (tsc + next build) · cdk (jest)
+├── pyproject.toml        Python 3.12 floor + ruff/black/mypy/pytest config
 ├── CHANGELOG.md          v0.x history
 ├── Makefile              Data generation + Neptune/OS load targets
 └── README.md             Public-facing quickstart
@@ -191,8 +194,10 @@ the new version (see `docs/runbooks/deploy-production.md`).
   poll
 - Two ECR repos: `ontology-mfg-dev-api` and `ontology-mfg-dev-web` in
   `ap-northeast-2`. ECS cluster: `ontology-mfg-dev-cluster`
-- After any persona-routed page change, run `tsc --noEmit` because legacy
-  `(buyer)/...` routes still import `api.eightD()` etc. as a Promise wrapper
 - AOSS / Neptune are VPC-internal — direct curl from the dev EC2 will time
   out. Test through the API container or via `aws ecs execute-command` (if
   enabled)
+- The "Manny" floating chatbot (`web/components/FloatingChat.tsx`) opens the
+  chrome-less `/manny` route — into a popup window on Firefox/Safari, into
+  an in-page iframe modal on Chromium. Both surfaces use the same
+  `/api/chat` SSE backend. See ADR-010.

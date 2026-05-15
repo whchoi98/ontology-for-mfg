@@ -1,9 +1,29 @@
 # Runbook — Bedrock model swap (CRIP rotation)
 
 - **Owner**: ontology-mfg-dev
-- **Last reviewed**: 2026-05-09
+- **Last reviewed**: 2026-05-15
 - **Severity**: Standard
 - **Scope**: Production + Dev
+
+## Compatibility requirement (v0.5.6+)
+
+**Any new chat-tier model must support the `converse_stream` API**, not
+just `converse`. ADR-009 made `/api/chat` (and the AgentRunner backing
+8D / insights when they migrate) token-streaming-only. A blocking-only
+model would break the user-perceived TTFB invariant.
+
+Check with:
+```bash
+aws bedrock list-foundation-models --region ap-northeast-2 \
+  --query 'modelSummaries[?modelId==`<NEW_MODEL_ID>`].responseStreamingSupported'
+```
+Must return `[true]`. If not, the model is incompatible — pick a
+streaming-capable alternative or open a follow-up to extend agent.py's
+fallback path.
+
+The Haiku 4.5 follow-up generator (`services/followups.py`) uses the
+blocking `converse` and is unaffected — it's a single-shot 300-token
+call where streaming buys nothing.
 
 ## When to use
 

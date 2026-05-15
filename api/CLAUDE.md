@@ -21,7 +21,7 @@ api/
 ├── middleware_auth.py       Cognito id_token cookie verifier
 ├── Dockerfile               linux/arm64 python:3.12-slim
 ├── routers/
-│   ├── chat.py              B — Bedrock Converse + tool-use SSE
+│   ├── chat.py              B — Bedrock converse_stream + tool-use SSE + suggested_followups
 │   ├── search.py            A — hybrid BM25+KNN with Cohere reranker
 │   ├── insights.py          C — Neptune aggregates + Sonnet streaming
 │   ├── spec_match.py        D — req → candidates + standards subgraph
@@ -36,8 +36,12 @@ api/
 │   ├── objects.py           Knowledge graph object explorer (22 classes)
 │   ├── ops.py               5-area ops console (ingest/guardrail/memory/eval/trace)
 │   └── auth.py              Cognito callback / logout / whoami
+├── schemas/
+│   ├── __init__.py         Per-router Pydantic response_model union (v0.5.0)
+│   └── sse.py              SSE event Pydantic discriminator — phase/delta/tool_*/guardrail/suggested_followups/stop
 └── services/
-    ├── agent.py             AgentRunner (Bedrock Converse + tool-use loop, trace ring buffer)
+    ├── agent.py             AgentRunner (Bedrock converse_stream + tool-use loop, trace ring buffer)
+    ├── followups.py         Haiku 4.5 follow-up question generator (v0.5.3 — persona KPI tones)
     ├── neptune.py           openCypher client + label-allowlist guard
     ├── search.py            OpenSearch hybrid_search (BM25+KNN+RRF)
     ├── kb.py                Bedrock Knowledge Base retrieve
@@ -58,8 +62,11 @@ api/
   ones (chat, eight_d, insights) run via `concurrent.futures.ThreadPoolExecutor`
   with a 25s timeout budget (`_BEDROCK_BUDGET_S`)
 - **SSE event vocabulary** — `phase / phase_done / delta / tool_call /
-  tool_result / guardrail / result / stop / error`. See `services/agent.py`
-  for the canonical emitter
+  tool_result / guardrail / log / result / suggested_followups / stop /
+  error`. Canonical Pydantic discriminator in `api/schemas/sse.py` (v0.5.0
+  contract); the `as_event(...)` helper there is the only place that
+  serializes events. Emitter lives in `services/agent.py` (token-level
+  streaming via `bedrock_runtime().converse_stream(...)` — ADR-009).
 - **Read-only Cypher gateway** — `_tool_neptune` in `routers/chat.py`
   applies a regex deny-list (CREATE / DELETE / DETACH DELETE / SET / REMOVE
   / MERGE / DROP / FOREACH / LOAD CSV / CALL db./dbms./apoc.write) before
@@ -71,8 +78,16 @@ api/
   the last 200 tool_call events (per-instance, ECS task-local). Powers
   `/api/ops/trace`
 - **Bedrock model selection** — chat / insights use `settings.sonnet_model`,
-  8D writer + community labeller use `settings.haiku_model`. Both are CRIP
-  ids overridable via `MFG_SONNET_MODEL_ID` / `MFG_HAIKU_MODEL_ID`
+  8D writer + community labeller + **follow-up generator** use
+  `settings.haiku_model`. Both are CRIP ids overridable via
+  `MFG_SONNET_MODEL_ID` / `MFG_HAIKU_MODEL_ID`. Any new chat-tier model must
+  support the Bedrock `converse_stream` API (we no longer use the blocking
+  `converse` for chat — see ADR-009).
+- **Follow-up questions on /chat** — after `runner.run_stream` finishes,
+  `chat.py` calls `api/services/followups.py` with the accumulated assistant
+  text + persona, generates 3 short Korean questions tuned to the active
+  persona's KPI tone, and emits a `suggested_followups` SSE event right
+  before `stop`. Failures degrade to `[]` (never raised mid-stream).
 
 ## Gotchas
 

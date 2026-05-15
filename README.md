@@ -21,9 +21,13 @@ CloudFront.
   Maintenance / ESG / Carbon)
 - **5 personas** — Buyer / Engineer / Quality / SCM / Plant; same scenario
   surfaces different framings per persona
-- **Agentic AI** — Bedrock Converse with tool-use across `search_semantic`,
-  `neptune_query`, `kb_retrieve`, `compliance_check`, `memory_save`; SSE
-  streaming for live phase chips
+- **Agentic AI** — Bedrock `converse_stream` with tool-use across
+  `search_semantic`, `neptune_query`, `kb_retrieve`, `compliance_check`,
+  `memory_save`; token-level SSE streaming with persona-tuned follow-up
+  question chips after every turn (Haiku 4.5)
+- **"Manny" floating chatbot** — bottom-right launcher on every page;
+  opens as a popup window (Firefox / Safari) or in-page iframe modal
+  (Chromium) targeting the chrome-less `/manny` route
 - **PDF export** on chat / 8D / insights / spec / lane scenarios via a
   shared `web/lib/pdf-export.ts` helper
 
@@ -31,7 +35,7 @@ CloudFront.
 
 | Layer | Tech |
 |-------|------|
-| API | FastAPI 3.12 · sse-starlette · boto3 |
+| API | FastAPI on Python 3.12 (`pyproject.toml` requires-python>=3.12) · sse-starlette · boto3 |
 | Web | Next.js 14 (App Router, standalone) · Tailwind · Cytoscape.js |
 | LLM | Bedrock Converse — Sonnet 4.6 (chat) + Haiku 4.5 (8D, codegraph) |
 | Graph | Amazon Neptune (openCypher, VPC-internal) |
@@ -45,18 +49,23 @@ CloudFront.
 
 ```
 api/         FastAPI backend (12+ routers, ops console, SSE streams)
-web/         Next.js 14 App Router (12 scenarios, 5 personas, PDF export)
+web/         Next.js 14 App Router (12 scenarios, /manny popup, PDF export)
 data/        Synthetic generators + standards loaders + schemas
 infra-cdk/   AWS CDK (network/data/compute/ai/edge/observability)
 scripts/     Bedrock community labeller for graphify
 docs/        architecture · ADRs · runbooks · deploy logs
-tests/       pytest — services, routers, data
+tests/       pytest — services, routers, integration, data
+.github/     GitHub Actions CI (api / web / cdk parallel jobs)
+pyproject.toml  Python 3.12 floor + ruff/black/mypy/pytest config
 ```
 
 ## Local development
 
 ```bash
 # Prerequisites: Python 3.12, Node 20+, AWS CLI configured for dev account
+# AL2023: sudo dnf install -y python3.12
+make venv                       # python3.12 -m venv .venv + pip install
+source .venv/bin/activate
 make data                       # Regenerate synthetic ndjson under data/output/
 cd web && npm install && npm run dev    # http://localhost:3000
 cd api && uvicorn api.main:app --reload  # http://localhost:8000

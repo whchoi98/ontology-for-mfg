@@ -36,10 +36,16 @@ ARM64 behind a Cognito-protected CloudFront distribution at
 - **S3** — synthetic ndjson archives + Bedrock KB source bucket.
 
 ### Processing / AI
-- `api/services/agent.py` — `AgentRunner` driving Bedrock Converse with
-  tool-use loop (max 8 rounds). Emits `phase / delta / tool_call /
-  tool_result / guardrail / log / error / stop` SSE events. 200-deep
-  trace ring buffer powers `/api/ops/trace`.
+- `api/services/agent.py` — `AgentRunner` driving Bedrock **`converse_stream`**
+  with tool-use loop (max 8 rounds). Token-level streaming: every
+  `contentBlockDelta` text chunk is forwarded as its own SSE `delta` event
+  the moment it arrives (ADR-009, v0.5.6). Emits `phase / delta / tool_call
+  / tool_result / guardrail / log / suggested_followups / error / stop`
+  SSE events. 200-deep trace ring buffer powers `/api/ops/trace`. Pydantic
+  discriminator union in `api/schemas/sse.py`.
+- `api/services/followups.py` — Haiku 4.5 per-turn follow-up question
+  generator. 300 tokens, persona-tuned (KPI tone map for each of buyer /
+  engineer / quality / scm / plant). Failures degrade to `[]`. (v0.5.3)
 - `api/services/eight_d_writer.py` — Haiku 4.5 tool-use 8D draft
   (8 required string fields), `maxTokens=1500`. ADR-001 explains model
   choice.
@@ -69,10 +75,20 @@ ARM64 behind a Cognito-protected CloudFront distribution at
 - 12 scenario pages + 22-class object explorer (`/objects/[type]`) +
   5-area ops console (`/ops/[area]`) + code knowledge graph
   (`/codegraph`) + meta pages (schema / standards / validation).
+- **"Manny" floating chatbot** (`web/components/FloatingChat.tsx`,
+  v0.5.4) — bottom-right launcher on every page; UA-branches to popup
+  window (Firefox / Safari) or in-page iframe modal (Chromium) targeting
+  the chrome-less `/manny` route (ADR-010).
+- `web/app/manny/page.tsx` — chrome-less popup chat surface with inline
+  persona switcher, 5-per-persona sample queries, follow-up chips, and
+  the same `/api/chat` SSE backend as `/chat`.
+- `web/components/LayoutShell.tsx` — client-side chrome dispatcher.
+  Hides Sidebar / top bar / FloatingChat on the `/manny` path; renders
+  the standard 3-zone shell elsewhere.
 - Shared `web/lib/pdf-export.ts` — A4 export pipeline used by chat /
   8D / insights / spec / lane.
 - Persona context (`useActivePersona()`) drives per-persona framings on
-  same routes; legacy `(buyer)/...` route groups are dead.
+  same routes; legacy `(buyer)/...` route groups were removed in v0.5.2.
 
 ### Observability
 - CloudWatch logs — `/aws/ecs/ontology-mfg-dev-api` consumed by
@@ -80,9 +96,21 @@ ARM64 behind a Cognito-protected CloudFront distribution at
 - CloudWatch metrics — namespace `AWS/AOSS` for OpenSearch + custom
   application metrics.
 - `/api/ops/eval` — 30-query mfg-domain wow query scoreboard,
-  re-runnable on demand.
+  re-runnable on demand (DynamoDB-persisted history with 90-day TTL,
+  `ThreadPoolExecutor(max_workers=8)` parallelism — v0.5.0).
 - `/api/ops/trace` — last 200 tool_call events from the in-process
   ring buffer.
+
+### CI / CD
+- `.github/workflows/ci.yml` — 3 parallel jobs on push / PR to main:
+  - **api** — `pytest -v` on Python 3.12 (pyproject.toml pinned) + ruff
+    + black non-blocking
+  - **web** — `tsc --noEmit` strict + `next build` (standalone)
+  - **cdk** — `npm test` Jest invariant suite (IAM scope, CloudFront SSE
+    compression locks)
+- Image deploy is manual: `docker build → ECR push →
+  aws ecs update-service --force-new-deployment`. See
+  `docs/runbooks/deploy-production.md`.
 
 ### Security
 - Amazon Cognito (User Pool `us-east-1_zQZZJRYer`) — email + OpenID
@@ -193,6 +221,9 @@ See [`docs/decisions/`](decisions/) for full ADRs. Headlines:
   builders
 - **ADR-007** — CloudFront origin-response compression disabled for SSE
 - **ADR-008** — 22-class ontology + 12-scenario A–L taxonomy
+- **ADR-009** — Token-level Bedrock streaming via `converse_stream` (v0.5.6)
+- **ADR-010** — UA-branching popup vs iframe-modal for the Manny floating
+  chatbot launcher (v0.5.5)
 
 ## Operations
 
@@ -201,3 +232,5 @@ See [`docs/decisions/`](decisions/) for full ADRs. Headlines:
 - **Incident response**: [`docs/runbooks/incident-response.md`](runbooks/incident-response.md)
 - **Bedrock model swap**: [`docs/runbooks/bedrock-model-swap.md`](runbooks/bedrock-model-swap.md)
 - **Auth (Cognito)**: [`docs/runbooks/auth-cognito.md`](runbooks/auth-cognito.md)
+- **SSE troubleshooting**: [`docs/runbooks/sse-troubleshooting.md`](runbooks/sse-troubleshooting.md)
+- **CI pipeline**: [`docs/runbooks/ci-pipeline.md`](runbooks/ci-pipeline.md)
