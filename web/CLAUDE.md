@@ -49,6 +49,7 @@ web/
 ├── lib/
 │   ├── api-base.ts            apiUrl() — single source of the `/api` prefix
 │   ├── api-client.ts          fetch helpers + SSE streamers (chat, eight_d, sse_stream)
+│   ├── chat-history.ts        historyFrom() / isCompleteStop() — client-held chat context (ADR-012)
 │   ├── sse-events.ts          TS mirror of api/schemas/sse.py event union
 │   ├── manny-bridge.ts        /manny ↔ FloatingChat same-origin postMessage (ESC close)
 │   ├── persona-context.tsx    useActivePersona() — drives 12 scenarios
@@ -82,6 +83,11 @@ web/
   `setActive`. Per-persona route variants were removed in v0.5.2 — persona is
   a runtime concern, not a routing one. `/manny` re-implements the persona
   chip row inline because the popup has no global PersonaSwitch.
+- **Chat context** — `/chat` and `/manny` pass `historyFrom(messages)` as
+  `chatStream`'s 5th argument. Mark an answer `complete` only on
+  `stop(end_turn)` (`isCompleteStop`) — blocked / failed / cancelled turns
+  must never be replayed. A persona switch or 「새 대화」/「새로」 starts a new
+  session with empty history.
 - **SSE consumption** — Use the helpers in `lib/api-client.ts`
   (`chatStream`, `eightDStream`, internal `sseStream`). Don't reimplement
   EventSource parsing. The chat stream now includes `suggested_followups`

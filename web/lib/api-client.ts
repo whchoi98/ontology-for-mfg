@@ -1,4 +1,5 @@
 import { apiUrl } from "./api-base";
+import type { ChatTurn } from "./chat-history";
 
 const SESSION_EXPIRED_MSG =
   "로그인 세션이 만료되었습니다. 페이지를 새로고침하면 자동 재로그인됩니다.";
@@ -270,9 +271,12 @@ function eightD(incident_id: string): Promise<Record<string, unknown>> {
   });
 }
 
+/** Stream one chat turn. `history` = the earlier completed turns, oldest first
+ *  (`historyFrom()` in lib/chat-history.ts) — the API keeps no conversation state. */
 export function chatStream(
   msg: string, session_id: string, persona = "engineer",
   onEvent: (e: StreamEvent) => void,
+  history: ChatTurn[] = [],
 ): () => void {
-  return sseStream("/chat", { msg, session_id, persona }, onEvent);
+  return sseStream("/chat", { msg, session_id, persona, history }, onEvent);
 }

@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Download, FileText } from "lucide-react";
+import { AlertTriangle, Download, FileText, RotateCcw } from "lucide-react";
 import { chatStream } from "@/lib/api-client";
+import { type ChatTurn, historyFrom, isCompleteStop } from "@/lib/chat-history";
 import { exportToPdf } from "@/lib/pdf-export";
 import { useActivePersona } from "@/lib/persona-context";
 import { sseErrorText, stopReasonNotice } from "@/lib/sse-events";
@@ -15,6 +16,8 @@ type ChatMessage = {
   toolLogs?: { tool: string; input: unknown }[];
   /** Stream failure notice (`error` event / network drop) shown under the bubble. */
   error?: string;
+  /** Stopped with end_turn — only such answers are replayed as context (lib/chat-history). */
+  complete?: boolean;
 };
 type Phase = { name: string; detail?: string };
 type Sample = { label: string; persona: Persona };
@@ -53,7 +56,7 @@ const PERSONA_LABEL: Record<Persona, string> = {
 const PHASE_META: Record<string, { label: string; tone: string }> = {
   "guardrail":     { label: "입력 가드레일",   tone: "border-rose-500/40   bg-rose-500/10   text-rose-200" },
   "guardrail-out": { label: "응답 가드레일",   tone: "border-rose-500/40   bg-rose-500/10   text-rose-200" },
-  "bedrock":       { label: "Sonnet 4.6 추론", tone: "border-orange-500/40 bg-orange-500/10 text-orange-200" },
+  "bedrock":       { label: "Sonnet 5.5 추론", tone: "border-orange-500/40 bg-orange-500/10 text-orange-200" },
   "tool_use":      { label: "도구 사용",        tone: "border-cyan-500/40   bg-cyan-500/10   text-cyan-200" },
 };
 
@@ -115,7 +118,8 @@ export default function ChatPage() {
     setStreaming(false);
     const queued = queuedRef.current;
     queuedRef.current = null;
-    if (queued && queued.persona === active) startStream(queued.text, active, sid);
+    // A new persona starts a new conversation — no history carries over.
+    if (queued && queued.persona === active) startStream(queued.text, active, sid, []);
     return abortStream;
     // startStream only touches refs, state setters and its arguments;
     // re-running on its identity would reset the session on every render.
@@ -128,7 +132,18 @@ export default function ChatPage() {
   }, [messages, streaming]);
 
   function sendMessage(text: string) {
-    startStream(text, active, sessionId);
+    startStream(text, active, sessionId, historyFrom(messages));
+  }
+
+  /** "새 대화" — drop the conversation context without switching persona. */
+  function resetConversation() {
+    abortStream();
+    setStreaming(false);
+    setMessages([]);
+    setToolLog([]);
+    setPhases([]);
+    setFollowups([]);
+    setSessionId(newSessionId(active));
   }
 
   function sendSample(p: Sample) {
@@ -140,7 +155,7 @@ export default function ChatPage() {
     setActive(p.persona);
   }
 
-  function startStream(text: string, persona: Persona, sid: string) {
+  function startStream(text: string, persona: Persona, sid: string, history: ChatTurn[]) {
     const trimmed = text.trim();
     if (!trimmed || cancelRef.current) return;
     const streamId = ++streamIdRef.current;
@@ -205,10 +220,13 @@ export default function ChatPage() {
         if (notice) {
           setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, error: last.error ?? notice })));
         }
+        if (isCompleteStop(ev.reason)) {
+          setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, complete: true })));
+        }
         cancelRef.current = null;
         setStreaming(false);
       }
-    });
+    }, history);
   }
 
   // ─── Export helpers ────────────────────────────────────────────────────
@@ -296,6 +314,8 @@ export default function ChatPage() {
     }
   }
 
+  const contextPairs = historyFrom(messages).length / 2;
+
   return (
     <div className="min-h-screen flex flex-col">
       <ScenarioHeader
@@ -311,11 +331,19 @@ export default function ChatPage() {
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-ink-50">시나리오 B · 대화형 에이전트</h1>
               <p className="text-sm text-ink-400 mb-4">
-                AgentCore Memory + Bedrock Converse tool-use. 우측 패널에 도구 호출이 실시간 표시됩니다.
+                Bedrock Converse tool-use (Sonnet 5.5) — 이전 대화를 맥락으로 이어서 답합니다. 우측 패널에 도구 호출이 실시간 표시됩니다.
               </p>
             </div>
             {messages.length > 0 && (
               <div className="flex items-center gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={resetConversation}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-ink-700 text-ink-300 hover:border-accent-500 hover:text-accent-300 transition"
+                  title="대화 맥락을 지우고 새로 시작"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> 새 대화
+                </button>
                 <button
                   type="button"
                   onClick={downloadMarkdown}
@@ -363,6 +391,11 @@ export default function ChatPage() {
               {streaming ? "응답 중…" : "전송"}
             </button>
           </form>
+          {contextPairs > 0 && (
+            <p className="-mt-1 mb-3 text-[11px] text-ink-500" data-testid="chat-context-hint">
+              이전 대화 {contextPairs}개를 맥락으로 이어서 답합니다 · 「새 대화」로 초기화
+            </p>
+          )}
 
           {/* Streaming phase strip */}
           {(streaming || phases.length > 0) && (

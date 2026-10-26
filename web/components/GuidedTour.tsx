@@ -32,7 +32,7 @@ const STEPS: Step[] = [
     icon: Map,
     pitch: 'AMZN Tech Hi-Tech MFG 온톨로지 데모입니다 — Bedrock + AgentCore + Neptune 위에 12개 시나리오(A-L)가 올라갑니다. 5개 페르소나(Buyer·Engineer·Quality·SCM·Plant)가 동일한 그래프를 다른 시점에서 봅니다.',
     try_it: '우상단 페르소나 버튼으로 역할을 선택해두면 모든 시나리오가 해당 페르소나 시점을 반영합니다.',
-    tech: 'Next.js 16 + FastAPI + Bedrock Sonnet 4.6 + AgentCore Memory/Code Interpreter + Neptune + OpenSearch Serverless',
+    tech: 'Next.js 16 + FastAPI + Bedrock Sonnet 5.5 + AgentCore Memory/Code Interpreter + Neptune + OpenSearch Serverless',
   },
   {
     badge: 'A',
@@ -126,7 +126,7 @@ const STEPS: Step[] = [
     wow: true,
     pitch: '품질 인시던트 ID 입력만으로 D1-D8 전체 보고서를 자동 생성합니다. 근본 원인 + 시정 조치 + 재발 방지까지 Bedrock이 초안을 작성합니다.',
     try_it: '"INC-2026-0412" 입력 → ★ WOW: 15초 안에 8개 섹션 전체 8D 보고서가 완성됩니다.',
-    tech: 'Bedrock Sonnet 4.6 · Neptune QualityIncident + RootCause graph · 8D template generation',
+    tech: 'Bedrock Haiku 4.5 · Neptune QualityIncident + RootCause graph · 8D template generation',
   },
   {
     badge: 'K',

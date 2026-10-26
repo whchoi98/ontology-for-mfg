@@ -50,6 +50,24 @@ describe("chatStream", () => {
     expect(events.filter((e) => e.type === "delta").map((e) => e.text).join("")).toBe("안녕하세요");
   });
 
+  it("sends the earlier turns as `history` (empty for a first question)", async () => {
+    const fetchMock = vi.fn(async (_u: string, _init?: RequestInit) =>
+      sseResponse(['data: {"type":"stop","reason":"end_turn"}\n\n']));
+    vi.stubGlobal("fetch", fetchMock);
+    const history = [
+      { role: "user" as const, content: "Q1" },
+      { role: "assistant" as const, content: "A1" },
+    ];
+    const first = collect();
+    chatStream("hi", "s1", "buyer", first.onEvent);
+    const second = collect();
+    chatStream("Q2", "s1", "buyer", second.onEvent, history);
+    await vi.waitFor(() => expect(second.events.at(-1)?.type).toBe("stop"));
+    const bodies = fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+    expect(bodies[0]).toEqual({ msg: "hi", session_id: "s1", persona: "buyer", history: [] });
+    expect(bodies[1].history).toEqual(history);
+  });
+
   it("emits a synthetic stop(reason=aborted) when cancelled mid-request", async () => {
     vi.stubGlobal("fetch", hangingFetch());
     const { events, onEvent } = collect();

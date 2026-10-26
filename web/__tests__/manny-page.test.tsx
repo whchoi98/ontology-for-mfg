@@ -5,15 +5,16 @@ import { PersonaProvider } from "@/lib/persona-context";
 type Ev = { type: string; [k: string]: unknown };
 type Stream = {
   msg: string; sessionId: string; persona: string;
-  onEvent: (e: Ev) => void; cancel: ReturnType<typeof vi.fn>;
+  onEvent: (e: Ev) => void; cancel: ReturnType<typeof vi.fn>; history: unknown[];
 };
 
 const h = vi.hoisted(() => ({ streams: [] as Stream[] }));
 
 vi.mock("@/lib/api-client", () => ({
-  chatStream: vi.fn((msg: string, sessionId: string, persona: string, onEvent: (e: Ev) => void) => {
+  chatStream: vi.fn((msg: string, sessionId: string, persona: string, onEvent: (e: Ev) => void,
+    history: unknown[] = []) => {
     const cancel = vi.fn();
-    h.streams.push({ msg, sessionId, persona, onEvent, cancel });
+    h.streams.push({ msg, sessionId, persona, onEvent, cancel, history });
     return cancel;
   }),
 }));
@@ -101,5 +102,25 @@ describe("Manny popup page", () => {
     renderManny();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(postMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("MannyPage conversation context", () => {
+  it("replays only completed turns, and 새로 starts a clean context", () => {
+    renderManny();
+    const ask = (text: string) => {
+      fireEvent.change(input(), { target: { value: text } });
+      fireEvent.click(screen.getByRole("button", { name: /전송/ }));
+      return h.streams[h.streams.length - 1];
+    };
+    const first = ask("Q1");
+    emit(first, { type: "delta", text: "A1" });
+    emit(first, { type: "stop", reason: "end_turn" });
+    const failed = ask("Q2");
+    emit(failed, { type: "stop", reason: "fetch_error:TypeError" });
+    expect(ask("Q3").history).toEqual([
+      { role: "user", content: "Q1" },
+      { role: "assistant", content: "A1" },
+    ]);
   });
 });

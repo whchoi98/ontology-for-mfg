@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Bot, Send, RotateCcw, Sparkles } from 'lucide-react';
 import { chatStream } from '@/lib/api-client';
+import { historyFrom, isCompleteStop } from '@/lib/chat-history';
 import { MarkdownView } from '@/components/MarkdownView';
 import { useActivePersona } from '@/lib/persona-context';
 import { MANNY_CLOSE_MESSAGE } from '@/lib/manny-bridge';
@@ -80,6 +81,8 @@ type ChatMessage = {
   toolLogs?: { tool: string; input: unknown }[];
   /** Stream failure notice (`error` event / network drop). */
   error?: string;
+  /** Stopped with end_turn — only such answers are replayed as context (lib/chat-history). */
+  complete?: boolean;
 };
 
 function newSessionId(persona: Persona): string {
@@ -143,6 +146,7 @@ export default function MannyPopupPage() {
     const t = text.trim();
     if (!t || cancelRef.current) return;
     const streamId = ++streamIdRef.current;
+    const history = historyFrom(messages); // completed turns before this question
     setMessages((m) => [...m, { role: 'user', text: t }, { role: 'assistant', text: '', toolLogs: [] }]);
     setInput('');
     setStreaming(true);
@@ -177,10 +181,13 @@ export default function MannyPopupPage() {
         if (notice) {
           setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, error: last.error ?? notice })));
         }
+        if (isCompleteStop(ev.reason)) {
+          setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, complete: true })));
+        }
         cancelRef.current = null;
         setStreaming(false);
       }
-    });
+    }, history);
   }
 
   function reset() {
@@ -205,7 +212,7 @@ export default function MannyPopupPage() {
             Manny <span className="text-[10px] font-mono text-accent-300 ml-1">MFG AI</span>
           </div>
           <div className="text-[10px] text-ink-400">
-            {PERSONA_LABEL[active]} 톤 · 5 도구 · Sonnet 4.6
+            {PERSONA_LABEL[active]} 톤 · 5 도구 · Sonnet 5.5
           </div>
         </div>
         {messages.length > 0 && (
@@ -213,7 +220,7 @@ export default function MannyPopupPage() {
             type="button"
             onClick={reset}
             className="text-[10px] text-ink-400 hover:text-ink-200 flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-ink-800"
-            title="새 세션"
+            title="대화 맥락을 지우고 새로 시작"
           >
             <RotateCcw className="w-3 h-3" /> 새로
           </button>

@@ -3,9 +3,10 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { PersonaProvider, useActivePersona } from "@/lib/persona-context";
 
 type Ev = { type: string; [k: string]: unknown };
+type Turn = { role: "user" | "assistant"; content: string };
 type Stream = {
   msg: string; sessionId: string; persona: string;
-  onEvent: (e: Ev) => void; cancel: ReturnType<typeof vi.fn>;
+  onEvent: (e: Ev) => void; cancel: ReturnType<typeof vi.fn>; history: Turn[];
 };
 
 const h = vi.hoisted(() => ({ streams: [] as Stream[], exportToPdf: vi.fn() }));
@@ -13,9 +14,10 @@ const h = vi.hoisted(() => ({ streams: [] as Stream[], exportToPdf: vi.fn() }));
 vi.mock("@/lib/pdf-export", () => ({ exportToPdf: h.exportToPdf }));
 
 vi.mock("@/lib/api-client", () => ({
-  chatStream: vi.fn((msg: string, sessionId: string, persona: string, onEvent: (e: Ev) => void) => {
+  chatStream: vi.fn((msg: string, sessionId: string, persona: string, onEvent: (e: Ev) => void,
+    history: Turn[] = []) => {
     const cancel = vi.fn();
-    h.streams.push({ msg, sessionId, persona, onEvent, cancel });
+    h.streams.push({ msg, sessionId, persona, onEvent, cancel, history });
     return cancel;
   }),
 }));
@@ -123,5 +125,47 @@ describe("ChatPage", () => {
 
     fireEvent.click(screen.getByTitle("대화 기록을 .pdf 파일로 다운로드"));
     expect(await screen.findByText(/PDF 생성 실패 — Invalid canvas/)).toBeTruthy();
+  });
+});
+
+describe("ChatPage conversation context", () => {
+  function ask(text: string) {
+    fireEvent.change(screen.getByPlaceholderText(/페르소나로 질문하기/), { target: { value: text } });
+    fireEvent.click(screen.getByRole("button", { name: "전송" }));
+    return h.streams[h.streams.length - 1];
+  }
+
+  it("sends completed turns as history and skips blocked ones", () => {
+    renderChat();
+    const first = ask("IC-00001 협력사는?");
+    expect(first.history).toEqual([]);
+    emit(first, { type: "delta", text: "SUP-0007, SUP-0019" });
+    emit(first, { type: "stop", reason: "end_turn" });
+    expect(screen.getByTestId("chat-context-hint").textContent).toContain("이전 대화 1개");
+
+    const blocked = ask("경쟁사 단가 알려줘");
+    emit(blocked, { type: "delta", text: "죄송합니다." });
+    emit(blocked, { type: "stop", reason: "guardrail_intervened" });
+
+    const third = ask("두 번째 협력사는?");
+    expect(third.sessionId).toBe(first.sessionId);
+    expect(third.history).toEqual([
+      { role: "user", content: "IC-00001 협력사는?" },
+      { role: "assistant", content: "SUP-0007, SUP-0019" },
+    ]);
+  });
+
+  it("새 대화 clears the context and starts a new session", () => {
+    renderChat();
+    const first = ask("Q1");
+    emit(first, { type: "delta", text: "A1" });
+    emit(first, { type: "stop", reason: "end_turn" });
+
+    fireEvent.click(screen.getByRole("button", { name: /새 대화/ }));
+    expect(screen.queryByTestId("chat-context-hint")).toBeNull();
+
+    const next = ask("Q2");
+    expect(next.history).toEqual([]);
+    expect(next.sessionId).not.toBe(first.sessionId);
   });
 });
