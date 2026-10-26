@@ -103,6 +103,7 @@ for s in "${services[@]}"; do
   running=$(aws ecs list-tasks --region "$REGION" --cluster "$PREFIX-cluster" \
       --service-name "$PREFIX-$s" --desired-status RUNNING --query taskArns --output text \
     | xargs aws ecs describe-tasks --region "$REGION" --cluster "$PREFIX-cluster" \
-      --query 'tasks[].containers[0].imageDigest' --output text --tasks)
+      --query "tasks[].containers[?name=='$s'].imageDigest[]" --output text --tasks)
+  # (by name: GuardDuty runtime monitoring injects a sidecar that can come first)
   echo "==> $s:$tag ($digest) — running: $running"
 done
