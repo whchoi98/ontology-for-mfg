@@ -1,15 +1,19 @@
 """FastAPI entry — registers all 12 scenario routers + auth middleware + CORS."""
+
 from __future__ import annotations
+
 import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from api.config import settings
 from api.middleware_auth import CognitoBearerAuth
 
 logging.basicConfig(level=settings.log_level)
 log = logging.getLogger("mfg.api")
 
-app = FastAPI(title="ontology-mfg api", version="0.5.6")
+app = FastAPI(title="ontology-mfg api", version="0.6.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,9 +34,20 @@ def healthz():
 def _try_register():
     for module_name in [
         "auth",
-        "search", "chat", "insights", "spec_match", "compliance",
-        "substitute", "price", "scm_lane", "supplier_rfm", "eight_d",
-        "esg_cbam", "pdm", "objects", "ops",
+        "search",
+        "chat",
+        "insights",
+        "spec_match",
+        "compliance",
+        "substitute",
+        "price",
+        "scm_lane",
+        "supplier_rfm",
+        "eight_d",
+        "esg_cbam",
+        "pdm",
+        "objects",
+        "ops",
     ]:
         try:
             mod = __import__(f"api.routers.{module_name}", fromlist=["router"])

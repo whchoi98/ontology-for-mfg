@@ -1,6 +1,6 @@
 [project]
 name = "ontology-for-mfg"
-version = "0.5.6"
+version = "0.6.0"
 description = "Hi-Tech manufacturing ontology PoC — 22-class knowledge graph + 12 scenarios + agentic AI"
 requires-python = ">=3.12"
 readme = "README.md"
@@ -12,6 +12,10 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 ignore = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI parameter markers in signatures are the framework idiom, not shared defaults.
+extend-immutable-calls = ["fastapi.Body", "fastapi.Query", "fastapi.Path", "fastapi.Depends", "fastapi.Header", "fastapi.Cookie"]
 
 [tool.black]
 line-length = 100

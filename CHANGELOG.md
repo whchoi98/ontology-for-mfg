@@ -1,5 +1,217 @@
 # CHANGELOG.md
 
+## 0.6.0 — 2026-10-24 (Sonnet 5.5 · real guardrails · PyJWT auth · registry-driven graph)
+
+Hardening and modernisation release. The chat agent moves to Claude Sonnet
+5.5, Bedrock Guardrails are actually applied (the old "passed" SSE events
+were unconditional), Cognito verification is rebuilt on PyJWT with full
+claim checks + OAuth `state`, the knowledge graph is loaded from a single
+ontology registry (all 22 labels, 27 relationship types), and the whole
+dependency stack is bumped (FastAPI 0.162, Next.js 16 / React 19, CDK 2.274).
+
+### Highlights
+- Chat agent on `global.anthropic.claude-sonnet-5-5` with an `effort` knob
+  (`MFG_SONNET_EFFORT`, default `low`); Haiku 4.5 tier unchanged
+- Guardrails enforced: input pre-check + output check via `ApplyGuardrail`,
+  STANDARD tier (Korean-capable), probe-measured 0/43 benign prompts blocked
+  (ADR-011)
+- ID-token verification checks signature + `exp` + `iss` + `aud` +
+  `token_use=id`; login carries an OAuth `state`; Lambda@Edge hands
+  unauthenticated viewers to `/api/auth/login`
+- API task role can only *read* Neptune (`neptune-db:ReadDataViaQuery` +
+  `GetQueryStatus`) — ADR-002 follow-up closed
+- `ontology/registry.py` drives loader, TTL, chat schema prompt and a new
+  graph contract test: 10,844 nodes / 31,119 edges from the synthetic
+  dataset (the old loader wrote 17 labels + BOM edges only)
+
+### LLM / agent (`api/services/agent.py`)
+- **Sonnet 5.5** — `MFG_SONNET_MODEL_ID` default is now
+  `global.anthropic.claude-sonnet-5-5` (global profile only, no `apac.*`).
+  New `MFG_SONNET_EFFORT` (`low|medium|high|xhigh|max`, default `low`) is
+  sent as `additionalModelRequestFields.output_config.effort`.
+- **No `temperature`** — Sonnet 5.5 rejects sampling parameters; the chat
+  request sends only `maxTokens`, raised 2048 → **8192** because thinking
+  counts toward the budget.
+- **Reasoning blocks** — content blocks (reasoning / text / toolUse) are
+  rebuilt in stream order and replayed unchanged (signature / redacted
+  content included) in the tool loop.
+- **Tool-result backstop** — any tool result over 40 KB is replaced by a
+  truncated preview with an explicit marker (`MAX_TOOL_RESULT_BYTES`).
+- **botocore `Config` on Bedrock clients** — connect 5s, read 30s, standard
+  retry mode × 2 attempts (was botocore defaults: 60s read, legacy retries).
+  Client creation in `api/aws_clients.py` is serialised with a lock.
+- **Follow-ups bounded to 5s** (`followups._BUDGET_S`); past the budget the
+  chips are skipped. Haiku tier (8D writer, follow-ups, community labeller)
+  stays on Haiku 4.5.
+- **Chat system prompt** embeds `registry.schema_hint()` — the only labels /
+  relationship types that exist, with direction — plus the comma-joined
+  list-property convention.
+
+### Guardrails (`api/services/guardrails.py`, `infra-cdk/lib/ai-stack.ts`)
+- **Real checks** — `check()` returns a `GuardrailVerdict`
+  (`blocked / hits / message / detected`). Input check runs `ApplyGuardrail`
+  on the user question only (not on tool results — a Neptune row listing
+  SVHC substances must not trip HazardousChemical); a blocked question never
+  reaches the model and the stream stops with `guardrail_intervened`. Output
+  check runs on the full answer after streaming, so token-level deltas stay
+  live. Detect-mode hits surface as "탐지(모니터링)" plus a log line that
+  `/ops/guardrail` picks up. An ApplyGuardrail failure fails open with a
+  `log` event — it never claims a pass.
+- **STANDARD tier** via the `apac.guardrail.v1:0` cross-Region guardrail
+  profile. CLASSIC supports English / French / Spanish only and misjudged
+  Korean (blocked 5/31 demo samples).
+- **Topic modes** — IPConfidential + CompetitorDisparagement **BLOCK**;
+  RegulationViolation + HazardousChemical **detect-only** (in BLOCK mode they
+  stopped 7/12 ordinary compliance questions). Topic definitions rewritten
+  around prohibited *intent* rather than regulation / chemical names.
+  Content filter MISCONDUCT: input LOW / output HIGH.
+- **`BEDROCK_GUARDRAIL_VERSION`** setting (default `DRAFT`).
+- **`scripts/guardrail_probe.py`** — runs the demo samples + 12 ordinary
+  compliance questions (must not block) and 10 held-out violations through
+  the deployed guardrail; exits 1 on any benign block.
+
+### Auth / security
+- **python-jose → PyJWT** — `CognitoJwtVerifier` (`api/middleware_auth.py`),
+  shared by the middleware and `/api/auth/whoami` (one JWKS cache, 1h TTL).
+  Verifies RS256 signature + `exp` + `iss` + `aud` (= `settings.cognito_client_id`,
+  env `COGNITO_CLIENT_ID`) + `token_use=id`, 30s leeway. Invalid tokens get a
+  generic `401 {"error": "invalid token"}`.
+- **OAuth `state` (login CSRF)** — `/api/auth/login` sets an HttpOnly
+  `mfg_oauth_state` cookie (10 min, `path=/api/auth`); `/api/auth/callback`
+  returns `400 invalid_oauth_state` on mismatch.
+- **Lambda@Edge** — redirects unauthenticated viewers to `/api/auth/login`
+  (no more Cognito URL baked in at synth time), bypasses all `/api/auth/*`,
+  runtime `nodejs20.x` → `nodejs22.x`.
+- **Demo password custom resources removed** from EdgeStack — the repo copy
+  of the password is a placeholder, so every redeploy would have reset both
+  demo logins. Passwords are managed out-of-band (1Password).
+- **Neptune IAM read-only** — API task role `neptune-db:*` →
+  `neptune-db:ReadDataViaQuery` + `neptune-db:GetQueryStatus`.
+- **Cypher gateway hardening** (`api/routers/chat.py`) — deny-list also runs
+  on a comment- and backtick-normalised copy (`LOAD/**/CSV`,
+  `` CALL `db`.x() ``); trailing `LIMIT` appended / clamped to 100; results
+  truncated at 100 rows / 32 KB with an explicit `truncated` marker.
+- **`memory_save` session binding** — `session_id` is injected server-side
+  per request; the model can no longer choose (or collide) the partition.
+
+### Infra (CDK)
+- **Neptune engine 1.4.7.0 → 1.4.8.1** (in-place minor upgrade, deployed
+  2026-10-24; pre-upgrade snapshot `ontology-mfg-dev-neptune-pre-1-4-8-1-20261024`).
+  Cluster now has `DeletionPolicy` / `UpdateReplacePolicy: Snapshot`.
+- **AOSS data access policy** principals (KB role, loader task role, API task
+  role) declared in IaC — the loader and API roles had been hand-added and
+  would have been dropped by any CloudFormation update of the policy.
+- `aws-cdk-lib` 2.274 · `aws-cdk` CLI 2.1146 · `constructs` 10.8.1.
+- Fixed the AIStack Jest test that had failed since `878bbe0` (it still
+  expected a `CfnKnowledgeBase`; the KB is intentionally created post-deploy).
+- **Loader task role** (hand-made, imported by name) gets a CDK-managed
+  `LoaderEmbeddingPolicy`: `bedrock:InvokeModel` on Titan Embed v2 only, so
+  `data/load_search.py` can write KNN embeddings.
+- **Images** — API image drops `gcc`; web runtime stage removes the base
+  image's bundled npm/npx (they carried its fixable HIGH findings). ECR
+  enhanced scan: api Critical 17 / High 93 → 0 / 4, web Critical 14 / High 91
+  → 0 / 7 — the rest are Debian packages with no fixed version yet.
+
+### Graph / data
+- **Chat schema hint carries edge properties** — `registry.schema_hint()`
+  renders `(Component)-[:SUPPLIED_BY {leadtime, moq, otd, unit_price_usd}]->(Supplier)`
+  (`EdgeSpec.data_props`, contract-tested against loader output). Before, the
+  agent read price from the nodes and concluded it didn't exist; verified in-VPC
+  that it now binds `r` and answers from the edge.
+- **Demo hero part now exists** — every sample (/chat, /compliance, /substitute,
+  /price, Manny) starts from `AMZN-CMP-IC-00001`, but the global component
+  counter numbered the first IC `00012`, so those demos always fell back to
+  synthetic. `boms.py` now assigns the id to the first IC (3 SUPPLIED_BY offers,
+  AEC-Q100 + JESD22, benign substances).
+- **`ontology/registry.py`** — single source of truth: 22 `NodeSpec`s and the
+  edge derivation rules (27 relationship types), Cypher UPPER_SNAKE ↔ TTL
+  camelCase. `ontology/schema.ttl` is now generated
+  (`python -m ontology.build_ttl`, `--check` for staleness);
+  `ontology/upload.py` replaces the schema in its own named graph.
+- **`data/load_graph.py`** rewritten — loads all 22 labels (incl. reference
+  Region / Standard / Regulation / Substance nodes from `data/reference.py`)
+  plus FK-derived edges via batched `UNWIND … MERGE`. Flags: `--reset`
+  (DETACH DELETE registry labels first), `--dry-run` (offline counts),
+  `--nodes-only`, `--allow-dangling`, `--batch-size`; `--bom-edges` is a
+  deprecated no-op. List properties the API reads (standards, substances,
+  regulations) are stored comma-joined; read them with
+  `api.services.neptune.list_prop()`.
+- **`data/load_search.py`** — generates document embeddings (Titan Text
+  Embeddings v2, 1024-d, `data/embedding.py`) and recreates the index on
+  every full load (AOSS VECTORSEARCH auto-assigns `_id`, so re-runs no longer
+  duplicate documents). `--no-embed`, `--keep-index` flags.
+- **Synthetic data** — `data/synthetic/sourcing.py` adds SUPPLIED_BY offers
+  (lead time / OTD / unit price / MOQ) and MADE_OF sources;
+  `data/public/materials.py` adds benign constituent substances;
+  `data/synthetic/pipeline.py` generates the full dataset in memory for tests.
+- Object-explorer synthetic subgraphs derive from the registry (only real
+  relationship types, in their real direction).
+
+### Backend fixes
+- **8D model chip** — `_short_model_label` reads family + version from the
+  model id (it still said "Sonnet 4.6" while Haiku ran).
+- AOSS SigV4 uses `opensearch-py`'s `AWSV4SignerAuth` with refreshable
+  credentials (hourly ECS task-role key rotation no longer 403s search
+  until the task restarts).
+- Synthetic fallbacks no longer 500 when `NEPTUNE_ENDPOINT` is unset.
+- `/api/compliance` returns `status: compliant | non_compliant |
+  insufficient_data | invalid_input`; no substance declaration ≠ compliant.
+  The chat `compliance_check` tool uses the same lookup.
+- `/api/eight-d` stream always ends with exactly one `stop`.
+- `/api/price` robust to missing offer fields (`price_available` /
+  `leadtime_available` flags).
+- Pooled Neptune `requests.Session` with one refreshable credential provider.
+- `search_semantic` tool returns the application id (`_source.id`), not the
+  AOSS `_id`.
+
+### Web
+- **Next.js 14 → 16.4.3**, React 19.3.1 (async route `params` unwrapped with
+  `use()`), Turbopack builds, jspdf 4.2.1, ESLint 9 flat config, vitest
+  4.1.12. Plain `npm ci` works (no `--legacy-peer-deps`); image base
+  `node:24-slim`.
+- SSE stop contract (`error:<status>`, `fetch_error:…`, `aborted`), stream
+  tokens drop late events, unmount cancels, `error` events render.
+- `apiUrl()` (`lib/api-base.ts`) builds every API URL; Cytoscape stable
+  deps; objects page aborts stale fetches; PDF export rasterizes block-wise
+  (no more blank pages on long chats); Manny ESC via a same-origin
+  `postMessage` bridge (`lib/manny-bridge.ts`).
+- Compliance `insufficient_data` renders as "판정 불가"; price page
+  null-guards.
+
+### Dependencies
+- Single source of truth: `api/requirements.txt` + new
+  `loader/requirements.txt` are the exact pins the images install; root
+  `requirements.txt` includes both, so CI tests and `pip-audit`s what ships.
+- FastAPI 0.162 · Starlette 1.9 · sse-starlette 3.5 · uvicorn 0.54 ·
+  pydantic 2.14 · boto3 1.43 · PyJWT 2.15. Removed unused `gremlinpython`,
+  `psycopg` and `requests-aws4auth` from the API (`requests-aws4auth` stays
+  in the loader).
+- Dev tools: pytest 9.1 · pytest-asyncio 1.4 · ruff 0.17 · black 26 ·
+  mypy 2.4 · pip-audit 2.10.
+- `api/Dockerfile` no longer installs `gcc`.
+
+### CI / tooling
+- `ruff check` and `black --check` are now **blocking**; `pip-audit` on the
+  shipped pins; `npm audit --audit-level=high` for web (`--omit=dev`) and
+  cdk; web job runs vitest; Node 24.
+- Makefile: `PYTHON` defaults to `.venv/bin/python` (falls back to
+  `python3`); `make load-graph` runs `--reset`.
+
+### Tests
+- pytest 175 → **372**; web vitest **63**; cdk Jest **38**. New:
+  `tests/integration/test_graph_contract.py` (every label / relationship /
+  property the API's Cypher reads ⊆ loader output), `test_chat_tools.py`,
+  `test_registry.py`, `test_list_props.py`, `test_aws_clients.py`, ops tests.
+
+### Deploy notes
+- **Deploy EdgeStack before the new API image** — the new `/callback`
+  rejects a login without `state`, and the old Lambda@Edge sends viewers
+  straight to Cognito without one. See `docs/runbooks/deploy-production.md`.
+- Never cross a Neptune *major* version through CloudFormation — snapshot
+  and upgrade with the CLI first, then align `engineVersion`.
+- `make load-graph` (`--reset`) must run at least once so edges from the old
+  loader don't linger.
+
 ## 0.5.6 — 2026-05-15 (token-level streaming)
 
 Chat responses now paint incrementally token-by-token instead of arriving
