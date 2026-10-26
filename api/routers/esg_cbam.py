@@ -1,17 +1,19 @@
 # api/routers/esg_cbam.py — Scenario K
 from __future__ import annotations
+
 import random
-from typing import Optional
+
 from fastapi import APIRouter, Body
 from pydantic import BaseModel
-from api.services.neptune import get_neptune
+
 from api.services.carbon_calc import cbam_calc
+from api.services.neptune import get_neptune
 
 router = APIRouter(tags=["esg_cbam"])
 
 
 class EsgRequest(BaseModel):
-    plant_id: Optional[str] = None
+    plant_id: str | None = None
 
 
 def _synthesize_summary(plants: list[dict]) -> dict:
@@ -30,11 +32,12 @@ def _synthesize_summary(plants: list[dict]) -> dict:
 
 @router.post("/esg")
 def esg(req: EsgRequest = Body(...)) -> dict:
-    nep = get_neptune()
     plant_filter = "{id: $id}" if req.plant_id else ""
     rows: list[dict] = []
     try:
-        rows = nep.run_cypher(
+        # get_neptune() raises when NEPTUNE_ENDPOINT is unset — keep it inside
+        # the try so that degrades to the synthetic path instead of a 500.
+        rows = get_neptune().run_cypher(
             f"MATCH (p:Plant{plant_filter})-[:EMITS]->(c:CarbonScope) "
             "RETURN p.id AS plant_id, p.region AS region, c.scope AS scope, c.co2e_tons AS tons "
             "ORDER BY p.id, c.scope",
@@ -47,23 +50,33 @@ def esg(req: EsgRequest = Body(...)) -> dict:
     if rows:
         for r in rows:
             pid = r["plant_id"]
-            summary.setdefault(pid, {"region": r["region"], "scope_1": 0, "scope_2": 0, "scope_3": 0})
+            summary.setdefault(
+                pid, {"region": r["region"], "scope_1": 0, "scope_2": 0, "scope_3": 0}
+            )
             summary[pid][f"scope_{r['scope']}"] = r["tons"]
 
     synthetic = False
     if not summary:
         # Fallback: synthesize from Plant nodes (loader skipped EMITS edges)
         try:
-            plants_q = "MATCH (p:Plant{id: $id}) RETURN p.id AS plant_id, p.region AS region" if req.plant_id \
+            plants_q = (
+                "MATCH (p:Plant{id: $id}) RETURN p.id AS plant_id, p.region AS region"
+                if req.plant_id
                 else "MATCH (p:Plant) RETURN p.id AS plant_id, p.region AS region LIMIT 12"
+            )
             params = {"id": req.plant_id} if req.plant_id else {}
-            plants = nep.run_cypher(plants_q, params)
+            plants = get_neptune().run_cypher(plants_q, params)
         except Exception:
             plants = []
         if not plants:
             # Hard fallback so the UI always renders
-            plants = [{"plant_id": f"AMZN-PLANT-{i:03d}",
-                        "region": ["KR","CN","VN","MX","PL","US","IN"][i % 7]} for i in range(1, 13)]
+            plants = [
+                {
+                    "plant_id": f"AMZN-PLANT-{i:03d}",
+                    "region": ["KR", "CN", "VN", "MX", "PL", "US", "IN"][i % 7],
+                }
+                for i in range(1, 13)
+            ]
         summary = _synthesize_summary(plants)
         synthetic = True
 

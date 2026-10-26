@@ -19,7 +19,6 @@ from api.routers.objects import (
     _validate_label,
 )
 
-
 client = TestClient(app)
 
 
@@ -39,12 +38,28 @@ def test_allowlist_is_frozenset():
 @pytest.mark.parametrize(
     "expected_class",
     [
-        "Product", "Module", "Component", "RawMaterial",
-        "Manufacturer", "Supplier", "SubSupplier", "CustomerAccount", "Plant",
-        "Region", "TradeLane",
-        "Standard", "Certification", "Regulation", "Substance",
-        "QualityIncident", "EightDReport", "RootCause",
-        "Telemetry", "MaintenanceEvent", "ESGIndicator", "CarbonScope",
+        "Product",
+        "Module",
+        "Component",
+        "RawMaterial",
+        "Manufacturer",
+        "Supplier",
+        "SubSupplier",
+        "CustomerAccount",
+        "Plant",
+        "Region",
+        "TradeLane",
+        "Standard",
+        "Certification",
+        "Regulation",
+        "Substance",
+        "QualityIncident",
+        "EightDReport",
+        "RootCause",
+        "Telemetry",
+        "MaintenanceEvent",
+        "ESGIndicator",
+        "CarbonScope",
     ],
 )
 def test_each_canonical_class_in_allowlist(expected_class):
@@ -244,3 +259,82 @@ def test_get_object_detail_synthetic_subgraph(mock_neptune):
     for edge in body["subgraph"]["edges"]:
         assert edge["data"]["source"] in node_ids
         assert edge["data"]["target"] in node_ids
+
+
+@patch("api.routers.objects.get_neptune")
+def test_get_objects_counts_uses_single_aggregate_query(mock_neptune):
+    """B10: one `labels(n)[0], count(n)` aggregate instead of 22 sequential
+    per-label round-trips."""
+    mock_neptune.return_value.run_cypher.return_value = [
+        {"lbl": "Component", "c": 3000},
+        {"lbl": "Supplier", "c": 100},
+        {"lbl": "NotAnOntologyLabel", "c": 7},
+    ]
+    r = client.get("/api/objects/_counts")
+    assert r.status_code == 200
+    body = r.json()
+    assert mock_neptune.return_value.run_cypher.call_count == 1
+    assert len(body["counts"]) == 22
+    assert body["counts"]["Component"] == 3000
+    assert body["counts"]["Supplier"] == 100
+    assert body["counts"]["Plant"] == 0
+    assert "NotAnOntologyLabel" not in body["counts"]
+    assert body["total_nodes"] == 3100
+    assert body["_synthetic"] is False
+
+
+@patch("api.routers.objects.get_neptune")
+def test_get_objects_counts_neptune_unconfigured_falls_back(mock_neptune):
+    mock_neptune.side_effect = RuntimeError("NEPTUNE_ENDPOINT not configured")
+    r = client.get("/api/objects/_counts")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["counts"]) == 22
+    assert body["_synthetic"] is True
+
+
+@patch("api.routers.objects.get_neptune")
+def test_get_object_detail_unknown_id_does_not_borrow_other_objects_props(mock_neptune):
+    """B11: an id that exists neither in Neptune nor in the synthetic set
+    must not be dressed up with the first synthetic item's properties."""
+    from api.routers.objects import _synthesize_items
+
+    mock_neptune.return_value.run_cypher.return_value = []
+    r = client.get("/api/objects/Component/AMZN-CMP-IC-99999")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["_synthetic"] is True
+    first = _synthesize_items("Component", 200)[0]
+    borrowed = {k: v for k, v in first.items() if k not in ("id", "name")}
+    assert body["properties"] != borrowed
+    assert body["name"] == "AMZN-CMP-IC-99999"
+
+
+@patch("api.routers.objects.get_neptune")
+def test_get_object_detail_synthetic_match_is_flagged(mock_neptune):
+    mock_neptune.return_value.run_cypher.return_value = []
+    body = client.get("/api/objects/Component/AMZN-CMP-IC-00001").json()
+    assert body["_synthetic"] is True
+    assert body["properties"].get("category") == "IC"
+
+
+@patch("api.routers.objects.get_neptune")
+def test_get_object_detail_real_node_not_synthetic(mock_neptune):
+    anchor = {
+        "~id": "u1",
+        "~labels": ["Component"],
+        "~properties": {"id": "AMZN-CMP-IC-00042", "name": "Real MCU", "category": "IC"},
+    }
+    std = {"~id": "u2", "~labels": ["Standard"], "~properties": {"id": "AEC-Q100", "name": "AEC"}}
+    rel = {"~id": "r1", "~type": "CONFORMS_TO", "~start": "u1", "~end": "u2"}
+
+    def _run(q, params):
+        if "-[r]-" in q:
+            return [{"n": anchor, "r": rel, "m": std}]
+        return [{"n": anchor}]
+
+    mock_neptune.return_value.run_cypher.side_effect = _run
+    body = client.get("/api/objects/Component/AMZN-CMP-IC-00042").json()
+    assert body["_synthetic"] is False
+    assert body["name"] == "Real MCU"
+    assert body["subgraph"]["edges"][0]["data"]["target"] == "AEC-Q100"

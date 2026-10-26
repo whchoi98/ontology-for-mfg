@@ -7,7 +7,10 @@ turn. Persona tone is keyed off the manufacturing KPI map below.
 Graceful degrade: any Bedrock error returns [] and the UI simply renders
 no chips. Never raises into the SSE stream.
 """
+
 from __future__ import annotations
+
+import concurrent.futures
 import logging
 
 from api.aws_clients import bedrock_runtime
@@ -19,11 +22,11 @@ log = logging.getLogger("mfg.followups")
 # "what does this user care about?" framing. Aligned with the 22-class
 # ontology in CLAUDE.md.
 PERSONA_TONE: dict[str, str] = {
-    "buyer":    "구매 부서 — 단가, 협력사 OTD, 리드타임, MOQ, 대체품, 비용 절감",
+    "buyer": "구매 부서 — 단가, 협력사 OTD, 리드타임, MOQ, 대체품, 비용 절감",
     "engineer": "R&D 엔지니어 — 스펙(전기/기계/온도), AEC-Q · JEDEC · IPC 인증, EOL, 호환성, 신뢰성",
-    "quality":  "품질 부서 — 8D / RCA, 인시던트, 부적합, REACH-SVHC, RoHS, IATF 16949, 수입검사",
-    "scm":      "공급망 부서 — TradeLane, IRA / CBAM / USMCA, FEoC, 재라우팅, ETA, FTA 활용",
-    "plant":    "생산 / 공장 — OEE, 가동률, PdM, 텔레메트리(vibration / temp), MTBF, 정비 일정",
+    "quality": "품질 부서 — 8D / RCA, 인시던트, 부적합, REACH-SVHC, RoHS, IATF 16949, 수입검사",
+    "scm": "공급망 부서 — TradeLane, IRA / CBAM / USMCA, FEoC, 재라우팅, ETA, FTA 활용",
+    "plant": "생산 / 공장 — OEE, 가동률, PdM, 텔레메트리(vibration / temp), MTBF, 정비 일정",
 }
 
 _DEFAULT_TONE = PERSONA_TONE["engineer"]
@@ -42,6 +45,25 @@ _SYSTEM = """당신은 Hi-Tech 제조 도메인 사용자의 후속 자연어 �
 # without affecting follow-up quality.
 _ANSWER_SNIPPET_MAX = 1200
 _USER_SNIPPET_MAX = 300
+
+# Chips are a nice-to-have: the chat router emits them right before `stop`,
+# so an unbounded Haiku call would hold the user's stream open. Haiku
+# answers 300 tokens in ~1-2s; past the budget we give up and render none.
+_BUDGET_S = 5.0
+_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="followups_bedrock")
+
+
+def _converse(user_block: str) -> str:
+    # Haiku 4.5 is plenty for 3 short follow-ups — Sonnet would burn
+    # ~10x cost/latency for the same 3 lines. Aligns with the eight_d
+    # writer's Haiku choice (commit 2494436 in CHANGELOG).
+    resp = bedrock_runtime().converse(
+        modelId=settings.haiku_model,
+        system=[{"text": _SYSTEM}],
+        messages=[{"role": "user", "content": [{"text": user_block}]}],
+        inferenceConfig={"temperature": 0.7, "maxTokens": 300},
+    )
+    return resp["output"]["message"]["content"][0]["text"]
 
 
 def generate(assistant_text: str, persona: str, last_user_msg: str) -> list[str]:
@@ -64,16 +86,14 @@ def generate(assistant_text: str, persona: str, last_user_msg: str) -> list[str]
     )
 
     try:
-        # Haiku 4.5 is plenty for 3 short follow-ups — Sonnet would burn
-        # ~10x cost/latency for the same 3 lines. Aligns with the eight_d
-        # writer's Haiku choice (commit 2494436 in CHANGELOG).
-        resp = bedrock_runtime().converse(
-            modelId=settings.haiku_model,
-            system=[{"text": _SYSTEM}],
-            messages=[{"role": "user", "content": [{"text": user_block}]}],
-            inferenceConfig={"temperature": 0.7, "maxTokens": 300},
-        )
-        text = resp["output"]["message"]["content"][0]["text"]
+        future = _POOL.submit(_converse, user_block)
+        text = future.result(timeout=_BUDGET_S)
+    except concurrent.futures.TimeoutError:
+        # cancel() only drops a still-queued call; a running one finishes
+        # in the background, bounded by the client's read_timeout.
+        future.cancel()
+        log.warning("followups generation timed out after %.1fs", _BUDGET_S)
+        return []
     except Exception as e:  # noqa: BLE001 — broad on purpose, never escape
         log.warning("followups generation failed: %s: %s", type(e).__name__, e)
         return []
@@ -85,7 +105,7 @@ def _parse_three(text: str) -> list[str]:
     """Extract up to 3 single-line questions from raw model output."""
     stripped: list[str] = []
     for line in text.split("\n"):
-        cleaned = line.strip(" -•*0123456789.).\t\"'`")
+        cleaned = line.strip(" -•*0123456789.).\t\"'`")  # noqa: B005 — a char set by design
         if 5 <= len(cleaned) <= 120:
             stripped.append(cleaned)
     return stripped[:3]

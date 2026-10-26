@@ -16,52 +16,59 @@ Helper `as_event(...)` formats a model instance into the
 `{"event": <type>, "data": <json>}` shape that sse-starlette's
 `EventSourceResponse` expects. Use it everywhere events are yielded.
 """
+
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class _LooseEvent(BaseModel):
     """Base for every SSE event — type discriminator + extra=allow."""
+
     model_config = ConfigDict(extra="allow")
     type: str
 
 
 # ─── Phase lifecycle ───────────────────────────────────────────────────────
 
+
 class PhaseEvent(_LooseEvent):
     type: Literal["phase"] = "phase"
     phase: str
-    label: Optional[str] = None
+    label: str | None = None
     # eight-d carries `model_id` + `model_label` on the bedrock phase event
     # so the UI chip reflects the actual runtime model.
-    model_id: Optional[str] = None
-    model_label: Optional[str] = None
+    model_id: str | None = None
+    model_label: str | None = None
 
 
 class PhaseDoneEvent(_LooseEvent):
     type: Literal["phase_done"] = "phase_done"
     phase: str
-    duration_s: Optional[float] = None
-    detail: Optional[str] = None
+    duration_s: float | None = None
+    detail: str | None = None
 
 
 # ─── Streaming output ──────────────────────────────────────────────────────
 
+
 class DeltaEvent(_LooseEvent):
     """Token / chunk of streamed assistant text."""
+
     type: Literal["delta"] = "delta"
     text: str
 
 
 # ─── Tool use ──────────────────────────────────────────────────────────────
 
+
 class ToolCallEvent(_LooseEvent):
     type: Literal["tool_call"] = "tool_call"
     name: str
-    args: Dict[str, Any] = Field(default_factory=dict)
+    args: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolResultEvent(_LooseEvent):
@@ -72,64 +79,75 @@ class ToolResultEvent(_LooseEvent):
 
 # ─── Guardrail / log / error ───────────────────────────────────────────────
 
+
 class GuardrailEvent(_LooseEvent):
     type: Literal["guardrail"] = "guardrail"
     name: str
     result: Literal["passed", "blocked"]
-    content: Optional[str] = None
+    content: str | None = None
 
 
 class LogEvent(_LooseEvent):
     type: Literal["log"] = "log"
-    level: Optional[str] = None
+    level: str | None = None
     message: str
 
 
 class ErrorEvent(_LooseEvent):
     type: Literal["error"] = "error"
-    name: Optional[str] = None
-    result: Optional[Dict[str, Any]] = None
-    content: Optional[str] = None
+    name: str | None = None
+    result: dict[str, Any] | None = None
+    content: str | None = None
 
 
 # ─── Final result + stop ───────────────────────────────────────────────────
 
+
 class ResultEvent(_LooseEvent):
     """Terminal payload for /eight-d (and /insights) — full markdown +
     sections + metadata. Chat does not emit this; chat ends with stop."""
+
     type: Literal["result"] = "result"
-    markdown: Optional[str] = None
-    sections: Optional[List[Dict[str, Any]]] = None
-    incident: Optional[Dict[str, Any]] = None
-    similar_count: Optional[int] = None
-    fallback: Optional[bool] = None
-    synthetic: Optional[bool] = None
-    total_s: Optional[float] = None
+    markdown: str | None = None
+    sections: list[dict[str, Any]] | None = None
+    incident: dict[str, Any] | None = None
+    similar_count: int | None = None
+    fallback: bool | None = None
+    synthetic: bool | None = None
+    total_s: float | None = None
 
 
 class StopEvent(_LooseEvent):
     type: Literal["stop"] = "stop"
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 class SuggestedFollowupsEvent(_LooseEvent):
     """3 short Korean follow-up questions appended right before /chat's stop
     event. The web UI renders these as clickable chips that send the picked
     question as the next user turn. See api/services/followups.py."""
+
     type: Literal["suggested_followups"] = "suggested_followups"
-    items: List[str] = Field(default_factory=list)
+    items: list[str] = Field(default_factory=list)
 
 
 # Union for type-checking emit functions
-SseEvent = Union[
-    PhaseEvent, PhaseDoneEvent, DeltaEvent,
-    ToolCallEvent, ToolResultEvent,
-    GuardrailEvent, LogEvent, ErrorEvent,
-    ResultEvent, StopEvent, SuggestedFollowupsEvent,
-]
+SseEvent = (
+    PhaseEvent
+    | PhaseDoneEvent
+    | DeltaEvent
+    | ToolCallEvent
+    | ToolResultEvent
+    | GuardrailEvent
+    | LogEvent
+    | ErrorEvent
+    | ResultEvent
+    | StopEvent
+    | SuggestedFollowupsEvent
+)
 
 
-def as_event(payload: BaseModel | Dict[str, Any]) -> Dict[str, str]:
+def as_event(payload: BaseModel | dict[str, Any]) -> dict[str, str]:
     """Serialize an SSE payload into sse-starlette's `{event, data}` shape.
 
     Accepts either a Pydantic model instance or a raw dict (for migration

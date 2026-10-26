@@ -12,6 +12,7 @@ can be reused with mfg-specific labels:
   • eval      — 30 mfg wow-query pass/fail scoreboard, cached 10 min
   • trace     — in-process tool-call ring buffer from agent service
 """
+
 from __future__ import annotations
 
 import concurrent.futures
@@ -20,12 +21,13 @@ import json
 import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from api.aws_clients import cloudwatch_logs, dynamodb as _ddb_client
+from api.aws_clients import cloudwatch_logs
+from api.aws_clients import dynamodb as _ddb_client
 from api.config import settings
 from api.services import agent as agent_svc
 from api.services.neptune import get_neptune
@@ -37,35 +39,62 @@ log = logging.getLogger("mfg.ops")
 
 # ─── /ops/ingest ────────────────────────────────────────────────────────────
 
+
 class IngestStatus(BaseModel):
-    neptune: Dict[str, int]
+    neptune: dict[str, int]
     opensearch_docs: int
     opensearch_index: str
 
 
 # Synthetic fallback for when Neptune is unreachable — keeps the ops panel
 # meaningful for a demo even with the cluster down.
-_INGEST_FALLBACK_LABELS: Dict[str, int] = {
-    "Component": 3000, "Telemetry": 5000, "Module": 400, "Substance": 250,
-    "Supplier": 100, "Product": 80, "QualityIncident": 80, "TradeLane": 60,
-    "EightDReport": 50, "RootCause": 50, "MaintenanceEvent": 50,
-    "RawMaterial": 200, "SubSupplier": 50, "Plant": 40, "ESGIndicator": 40,
-    "CarbonScope": 36, "Certification": 30, "CustomerAccount": 30,
-    "Standard": 10, "Region": 7, "Regulation": 5, "Manufacturer": 4,
+_INGEST_FALLBACK_LABELS: dict[str, int] = {
+    "Component": 3000,
+    "Telemetry": 5000,
+    "Module": 400,
+    "Substance": 250,
+    "Supplier": 100,
+    "Product": 80,
+    "QualityIncident": 80,
+    "TradeLane": 60,
+    "EightDReport": 50,
+    "RootCause": 50,
+    "MaintenanceEvent": 50,
+    "RawMaterial": 200,
+    "SubSupplier": 50,
+    "Plant": 40,
+    "ESGIndicator": 40,
+    "CarbonScope": 36,
+    "Certification": 30,
+    "CustomerAccount": 30,
+    "Standard": 10,
+    "Region": 7,
+    "Regulation": 5,
+    "Manufacturer": 4,
 }
-_INGEST_FALLBACK_EDGES: Dict[str, int] = {
-    ":CONSISTS_OF": 6000, ":CONFORMS_TO": 4500, ":SUPPLIED_BY": 3000,
-    ":CONTAINS_SUBSTANCE": 2500, ":HAS_MODULE": 2000, ":REGULATED_BY": 1200,
-    ":LOCATED_IN": 800, ":PART_OF": 600, ":HAS_SENSOR": 500,
-    ":SUB_SUPPLIES": 300, ":CONNECTS": 200, ":EMITS": 150,
-    ":ABOUT": 80, ":ROOT_CAUSE": 60, ":ADDRESSED_BY": 50,
+_INGEST_FALLBACK_EDGES: dict[str, int] = {
+    ":CONSISTS_OF": 6000,
+    ":CONFORMS_TO": 4500,
+    ":SUPPLIED_BY": 3000,
+    ":CONTAINS_SUBSTANCE": 2500,
+    ":HAS_MODULE": 2000,
+    ":REGULATED_BY": 1200,
+    ":LOCATED_IN": 800,
+    ":PART_OF": 600,
+    ":HAS_SENSOR": 500,
+    ":SUB_SUPPLIES": 300,
+    ":CONNECTS": 200,
+    ":EMITS": 150,
+    ":ABOUT": 80,
+    ":ROOT_CAUSE": 60,
+    ":ADDRESSED_BY": 50,
 }
 
 
 @router.get("/ops/ingest", response_model=IngestStatus)
 def ingest_status() -> IngestStatus:
     """Counts of every node label + edge type in Neptune, plus OS doc count."""
-    counts: Dict[str, int] = {}
+    counts: dict[str, int] = {}
     used_fallback = False
 
     try:
@@ -112,6 +141,7 @@ def ingest_status() -> IngestStatus:
 
 # ─── /ops/guardrail ─────────────────────────────────────────────────────────
 
+
 class GuardrailEvent(BaseModel):
     timestamp: int
     message: str
@@ -124,26 +154,30 @@ class GuardrailTopic(BaseModel):
 
 
 class GuardrailResponse(BaseModel):
-    events: List[GuardrailEvent]
+    events: list[GuardrailEvent]
     bedrock_guardrail_id: str
-    topics: List[GuardrailTopic]
+    topics: list[GuardrailTopic]
 
 
-_MFG_TOPICS: List[GuardrailTopic] = [
+_MFG_TOPICS: list[GuardrailTopic] = [
     GuardrailTopic(
-        name="IPConfidential", ko="IP/기밀 (BOM·단가 노출)",
+        name="IPConfidential",
+        ko="IP/기밀 (BOM·단가 노출)",
         definition="BOM 좌표·협력사 단가 등 비공개 정보 노출 차단",
     ),
     GuardrailTopic(
-        name="CompetitorDisparagement", ko="경쟁사 비방",
+        name="CompetitorDisparagement",
+        ko="경쟁사 비방",
         definition="Samsung/Sony/Whirlpool/Bosch 등 부정 표현 차단",
     ),
     GuardrailTopic(
-        name="RegulationViolation", ko="규제 위반 권유",
+        name="RegulationViolation",
+        ko="규제 위반 권유",
         definition="REACH-SVHC/RoHS/IRA/USMCA/CBAM 위반 부품·lane 추천 차단",
     ),
     GuardrailTopic(
-        name="HazardousChemical", ko="유해 화학물질",
+        name="HazardousChemical",
+        ko="유해 화학물질",
         definition="CMR 1A/1B 등급 화학물질 안전·MSDS 컨텍스트 없는 안내 차단",
     ),
 ]
@@ -154,12 +188,13 @@ def guardrail_events(minutes: int = 60, limit: int = 40) -> GuardrailResponse:
     """Recent CW log events on the API service mentioning guardrail/intervention."""
     end = int(time.time() * 1000)
     start = end - max(1, int(minutes)) * 60 * 1000
-    evts: List[GuardrailEvent] = []
+    evts: list[GuardrailEvent] = []
     try:
         resp = cloudwatch_logs().filter_log_events(
             logGroupName="/aws/ecs/ontology-mfg-dev-api",
-            startTime=start, endTime=end,
-            filterPattern='?guardrail ?intervention ?intervened ?scrub ?차단',
+            startTime=start,
+            endTime=end,
+            filterPattern="?guardrail ?intervention ?intervened ?scrub ?차단",
             limit=max(1, min(int(limit), 200)),
         )
         evts = [
@@ -178,30 +213,31 @@ def guardrail_events(minutes: int = 60, limit: int = 40) -> GuardrailResponse:
 
 # ─── /ops/memory ────────────────────────────────────────────────────────────
 
+
 class MemoryEvent(BaseModel):
-    actor_id: Optional[str] = None
-    role: Optional[str] = None
-    text: Optional[str] = None
-    event_timestamp: Optional[str] = None
-    raw: Dict[str, Any] = Field(default_factory=dict)
+    actor_id: str | None = None
+    role: str | None = None
+    text: str | None = None
+    event_timestamp: str | None = None
+    raw: dict[str, Any] = Field(default_factory=dict)
 
 
 class MemorySnapshot(BaseModel):
     memory_id: str
-    session_id: Optional[str]
-    events: List[MemoryEvent]
+    session_id: str | None
+    events: list[MemoryEvent]
 
 
 _MEMORY_TABLE = "ontology-mfg-dev-memory"
 
 
 @router.get("/ops/memory", response_model=MemorySnapshot)
-def memory_snapshot(session_id: Optional[str] = None, top_k: int = 30) -> MemorySnapshot:
+def memory_snapshot(session_id: str | None = None, top_k: int = 30) -> MemorySnapshot:
     """If `session_id` provided, list its DynamoDB-backed facts; else empty snapshot."""
     if not session_id:
         return MemorySnapshot(memory_id=_MEMORY_TABLE, session_id=None, events=[])
 
-    events: List[MemoryEvent] = []
+    events: list[MemoryEvent] = []
     try:
         resp = _ddb_client().query(
             TableName=_MEMORY_TABLE,
@@ -214,13 +250,15 @@ def memory_snapshot(session_id: Optional[str] = None, top_k: int = 30) -> Memory
             key = (it.get("key") or {}).get("S")
             value = (it.get("value") or {}).get("S")
             ts = (it.get("ts") or {}).get("S")
-            events.append(MemoryEvent(
-                actor_id=session_id,
-                role=key,
-                text=value,
-                event_timestamp=ts,
-                raw={"key": key, "value": value, "ts": ts},
-            ))
+            events.append(
+                MemoryEvent(
+                    actor_id=session_id,
+                    role=key,
+                    text=value,
+                    event_timestamp=ts,
+                    raw={"key": key, "value": value, "ts": ts},
+                )
+            )
     except Exception as e:
         log.warning("memory ddb query failed: %s", e)
 
@@ -232,42 +270,42 @@ def memory_snapshot(session_id: Optional[str] = None, top_k: int = 30) -> Memory
 # Mfg-domain wow queries — exercise hybrid search across BOM / Standards /
 # Suppliers / Quality / Regulation. Keywords are lower-case substrings the
 # search hit content/metadata should contain to count as a pass.
-_WOW_QUERIES: List[Dict[str, Any]] = [
-    {"q": "차량용 BGA 패키지 부품 추천",                   "kws": ["bga", "ic"]},
-    {"q": "AEC-Q100 인증 자동차 IC",                       "kws": ["aec-q100", "aec"]},
-    {"q": "JEDEC reflow profile 표준",                      "kws": ["jedec", "reflow"]},
-    {"q": "IPC-A-610 기준 솔더링 결함",                     "kws": ["ipc", "ipc-a-610"]},
-    {"q": "REACH SVHC 250 물질 회피 부품",                  "kws": ["reach", "svhc"]},
-    {"q": "RoHS 6+4 위반 위험 부품",                        "kws": ["rohs"]},
-    {"q": "납 무첨가 무연 솔더 표준",                       "kws": ["lead", "rohs", "납"]},
-    {"q": "1차 협력사 OTD 95% 이상 후보",                   "kws": ["supplier", "tier", "rfm"]},
-    {"q": "Tier-2 협력사 CN 의존 부품",                     "kws": ["subsupplier", "tier-2", "tier2"]},
-    {"q": "Innotek FC-BGA Gen5 솔더볼 균열",                 "kws": ["bga", "innotek"]},
-    {"q": "AMZN-CMP-IC-00001 부품 인증 상태",               "kws": ["amzn-cmp", "ic"]},
-    {"q": "8\" QHD 디스플레이 후보 5개",                     "kws": ["display", "디스플레이"]},
-    {"q": "리튬인산철 배터리 셀 후보",                       "kws": ["battery", "lithium", "lfp"]},
-    {"q": "EOL 부품 대체 후보",                              "kws": ["eol", "substitute", "대체"]},
-    {"q": "MX → US lane USMCA 75% RVC 검증",                  "kws": ["usmca", "lane", "trade"]},
-    {"q": "IRA 30D FEOC 위반 lane",                          "kws": ["ira", "30d", "feoc"]},
-    {"q": "EU CBAM 환산 100t 강재 비용",                      "kws": ["cbam"]},
-    {"q": "ISO-26262 ASIL-B 이상 부품",                      "kws": ["iso", "26262", "asil"]},
-    {"q": "IATF-16949 인증 protein 협력사",                  "kws": ["iatf", "16949"]},
-    {"q": "REACH SVHC 위반 위험 부품 100개",                 "kws": ["reach", "svhc"]},
-    {"q": "INC-2026-0412 인시던트 8D 리포트",                 "kws": ["incident", "8d", "inc-"]},
-    {"q": "BGA solder ball crack 유사 사례",                  "kws": ["bga", "solder"]},
-    {"q": "PCB 박리 incident root cause",                    "kws": ["pcb", "delamination", "박리"]},
-    {"q": "커패시터 누설 8D 보고서",                         "kws": ["capacitor", "leak", "커패시터"]},
-    {"q": "AMZN-PLANT-001 vibration 임계 초과 센서",          "kws": ["plant", "telemetry", "vibration"]},
-    {"q": "PdM 정비 권고 임계 초과",                          "kws": ["pdm", "maintenance"]},
-    {"q": "Plant ESG Scope 1+2 합산",                          "kws": ["esg", "carbon", "scope"]},
-    {"q": "AMZN-PLANT-005 CBAM 환산 부담액",                  "kws": ["cbam", "plant"]},
-    {"q": "스마트 냉장고 BOM 전체 모듈",                      "kws": ["product", "module", "smart"]},
-    {"q": "VS 사업부 자동차 전장 부품",                        "kws": ["vs", "automotive", "auto"]},
+_WOW_QUERIES: list[dict[str, Any]] = [
+    {"q": "차량용 BGA 패키지 부품 추천", "kws": ["bga", "ic"]},
+    {"q": "AEC-Q100 인증 자동차 IC", "kws": ["aec-q100", "aec"]},
+    {"q": "JEDEC reflow profile 표준", "kws": ["jedec", "reflow"]},
+    {"q": "IPC-A-610 기준 솔더링 결함", "kws": ["ipc", "ipc-a-610"]},
+    {"q": "REACH SVHC 250 물질 회피 부품", "kws": ["reach", "svhc"]},
+    {"q": "RoHS 6+4 위반 위험 부품", "kws": ["rohs"]},
+    {"q": "납 무첨가 무연 솔더 표준", "kws": ["lead", "rohs", "납"]},
+    {"q": "1차 협력사 OTD 95% 이상 후보", "kws": ["supplier", "tier", "rfm"]},
+    {"q": "Tier-2 협력사 CN 의존 부품", "kws": ["subsupplier", "tier-2", "tier2"]},
+    {"q": "Innotek FC-BGA Gen5 솔더볼 균열", "kws": ["bga", "innotek"]},
+    {"q": "AMZN-CMP-IC-00001 부품 인증 상태", "kws": ["amzn-cmp", "ic"]},
+    {"q": '8" QHD 디스플레이 후보 5개', "kws": ["display", "디스플레이"]},
+    {"q": "리튬인산철 배터리 셀 후보", "kws": ["battery", "lithium", "lfp"]},
+    {"q": "EOL 부품 대체 후보", "kws": ["eol", "substitute", "대체"]},
+    {"q": "MX → US lane USMCA 75% RVC 검증", "kws": ["usmca", "lane", "trade"]},
+    {"q": "IRA 30D FEOC 위반 lane", "kws": ["ira", "30d", "feoc"]},
+    {"q": "EU CBAM 환산 100t 강재 비용", "kws": ["cbam"]},
+    {"q": "ISO-26262 ASIL-B 이상 부품", "kws": ["iso", "26262", "asil"]},
+    {"q": "IATF-16949 인증 protein 협력사", "kws": ["iatf", "16949"]},
+    {"q": "REACH SVHC 위반 위험 부품 100개", "kws": ["reach", "svhc"]},
+    {"q": "INC-2026-0412 인시던트 8D 리포트", "kws": ["incident", "8d", "inc-"]},
+    {"q": "BGA solder ball crack 유사 사례", "kws": ["bga", "solder"]},
+    {"q": "PCB 박리 incident root cause", "kws": ["pcb", "delamination", "박리"]},
+    {"q": "커패시터 누설 8D 보고서", "kws": ["capacitor", "leak", "커패시터"]},
+    {"q": "AMZN-PLANT-001 vibration 임계 초과 센서", "kws": ["plant", "telemetry", "vibration"]},
+    {"q": "PdM 정비 권고 임계 초과", "kws": ["pdm", "maintenance"]},
+    {"q": "Plant ESG Scope 1+2 합산", "kws": ["esg", "carbon", "scope"]},
+    {"q": "AMZN-PLANT-005 CBAM 환산 부담액", "kws": ["cbam", "plant"]},
+    {"q": "스마트 냉장고 BOM 전체 모듈", "kws": ["product", "module", "smart"]},
+    {"q": "VS 사업부 자동차 전장 부품", "kws": ["vs", "automotive", "auto"]},
 ]
 
 
-_eval_cache: Dict[str, Any] = {"updated_at": 0.0, "result": None}
-_eval_history_cache: Dict[str, Any] = {"updated_at": 0.0, "rows": []}
+_eval_cache: dict[str, Any] = {"updated_at": 0.0, "result": None}
+_eval_history_cache: dict[str, Any] = {"updated_at": 0.0, "rows": []}
 _EVAL_CACHE_TTL_SEC = 600
 _EVAL_HISTORY_CACHE_TTL_SEC = 30
 _EVAL_HISTORY_TABLE = "ontology-mfg-dev-eval-history"
@@ -277,15 +315,15 @@ _eval_run_lock = threading.Lock()
 
 class EvalRow(BaseModel):
     q: str
-    keywords: List[str]
+    keywords: list[str]
     hit_count: int
     passed: bool
     latency_ms: int
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class EvalHistoryRow(BaseModel):
-    run_id: Optional[str] = None
+    run_id: str | None = None
     ts: int
     pass_rate: float
     passes: int
@@ -299,11 +337,11 @@ class EvalResponse(BaseModel):
     total: int
     avg_latency_ms: int
     cached_at_unix: int
-    rows: List[EvalRow]
-    history: List[EvalHistoryRow] = []
+    rows: list[EvalRow]
+    history: list[EvalHistoryRow] = []
 
 
-def _persist_eval_run(response: "EvalResponse") -> None:
+def _persist_eval_run(response: EvalResponse) -> None:
     """Append a compact summary row to DynamoDB so trends survive process
     restarts. Items carry a `ttl` numeric attribute (90 days) so the table
     self-prunes when DynamoDB TTL is enabled. Best-effort — failures fall
@@ -314,13 +352,13 @@ def _persist_eval_run(response: "EvalResponse") -> None:
         _ddb_client().put_item(
             TableName=_EVAL_HISTORY_TABLE,
             Item={
-                "partition":      {"S": "eval"},
-                "run_id":         {"S": run_id},
-                "ts":             {"N": str(ts)},
-                "ttl":            {"N": str(ts + _EVAL_HISTORY_TTL_DAYS * 86400)},
-                "pass_rate":      {"N": f"{response.pass_rate:.4f}"},
-                "passes":         {"N": str(response.passes)},
-                "total":          {"N": str(response.total)},
+                "partition": {"S": "eval"},
+                "run_id": {"S": run_id},
+                "ts": {"N": str(ts)},
+                "ttl": {"N": str(ts + _EVAL_HISTORY_TTL_DAYS * 86400)},
+                "pass_rate": {"N": f"{response.pass_rate:.4f}"},
+                "passes": {"N": str(response.passes)},
+                "total": {"N": str(response.total)},
                 "avg_latency_ms": {"N": str(response.avg_latency_ms)},
             },
         )
@@ -328,7 +366,7 @@ def _persist_eval_run(response: "EvalResponse") -> None:
         log.info("eval history persist skipped: %s", e)
 
 
-def _load_eval_history(limit: int = 15) -> List[Dict[str, Any]]:
+def _load_eval_history(limit: int = 15) -> list[dict[str, Any]]:
     """Most-recent runs first. Cached for `_EVAL_HISTORY_CACHE_TTL_SEC` so
     rapid polling doesn't burn DDB reads."""
     now = time.time()
@@ -345,11 +383,11 @@ def _load_eval_history(limit: int = 15) -> List[Dict[str, Any]]:
         )
         rows = [
             {
-                "run_id":         (it.get("run_id") or {}).get("S"),
-                "ts":             int((it.get("ts") or {}).get("N") or 0),
-                "pass_rate":      float((it.get("pass_rate") or {}).get("N") or 0),
-                "passes":         int((it.get("passes") or {}).get("N") or 0),
-                "total":          int((it.get("total") or {}).get("N") or 0),
+                "run_id": (it.get("run_id") or {}).get("S"),
+                "ts": int((it.get("ts") or {}).get("N") or 0),
+                "pass_rate": float((it.get("pass_rate") or {}).get("N") or 0),
+                "passes": int((it.get("passes") or {}).get("N") or 0),
+                "total": int((it.get("total") or {}).get("N") or 0),
                 "avg_latency_ms": int((it.get("avg_latency_ms") or {}).get("N") or 0),
             }
             for it in resp.get("Items", [])
@@ -362,13 +400,13 @@ def _load_eval_history(limit: int = 15) -> List[Dict[str, Any]]:
         return []
 
 
-def _eval_one(svc, spec: Dict[str, Any]) -> EvalRow:
+def _eval_one(svc, spec: dict[str, Any]) -> EvalRow:
     """Run a single wow-query and grade it. Pulled out so the loop can run
     in parallel via ThreadPoolExecutor."""
     q, kws = spec["q"], spec["kws"]
     t0 = time.perf_counter()
-    err: Optional[str] = None
-    hits: List[Dict[str, Any]] = []
+    err: str | None = None
+    hits: list[dict[str, Any]] = []
     if svc is not None:
         try:
             hits = list(svc.hybrid_search(q, top_n=10))
@@ -378,13 +416,16 @@ def _eval_one(svc, spec: Dict[str, Any]) -> EvalRow:
         err = "search service unavailable"
     latency_ms = int((time.perf_counter() - t0) * 1000)
     text_blob = " ".join(
-        json.dumps(h.get("_source", {}), ensure_ascii=False)
-        for h in hits[:5]
+        json.dumps(h.get("_source", {}), ensure_ascii=False) for h in hits[:5]
     ).lower()
     ok = bool(hits) and any(k.lower() in text_blob for k in kws)
     return EvalRow(
-        q=q, keywords=kws, hit_count=len(hits), passed=ok,
-        latency_ms=latency_ms, error=err,
+        q=q,
+        keywords=kws,
+        hit_count=len(hits),
+        passed=ok,
+        latency_ms=latency_ms,
+        error=err,
     )
 
 
@@ -398,17 +439,17 @@ def eval_status(run: bool = False, history_limit: int = 15) -> EvalResponse:
     `run=true` requests don't double-execute the 30 wow queries or
     double-write the same run to DynamoDB."""
     now = time.time()
+    # The cached EvalResponse is shared across concurrent requests — never
+    # mutate it; attach per-request history to a copy instead.
     cached = _eval_cache.get("result")
     if cached and not run and (now - _eval_cache["updated_at"]) < _EVAL_CACHE_TTL_SEC:
-        cached.history = _load_eval_history(limit=history_limit)
-        return cached  # type: ignore[return-value]
+        return cached.model_copy(update={"history": _load_eval_history(limit=history_limit)})
 
     with _eval_run_lock:
         # Re-check after acquiring — another thread may have just refreshed.
         cached = _eval_cache.get("result")
         if cached and not run and (now - _eval_cache["updated_at"]) < _EVAL_CACHE_TTL_SEC:
-            cached.history = _load_eval_history(limit=history_limit)
-            return cached  # type: ignore[return-value]
+            return cached.model_copy(update={"history": _load_eval_history(limit=history_limit)})
 
         try:
             svc = get_search()
@@ -424,12 +465,11 @@ def eval_status(run: bool = False, history_limit: int = 15) -> EvalResponse:
 
         passes = sum(1 for r in rows if r.passed)
         total = len(rows)
-        avg_latency = int(
-            sum(r.latency_ms for r in rows) / max(total, 1)
-        )
+        avg_latency = int(sum(r.latency_ms for r in rows) / max(total, 1))
         response = EvalResponse(
             pass_rate=(passes / total) if total else 0.0,
-            passes=passes, total=total,
+            passes=passes,
+            total=total,
             avg_latency_ms=avg_latency,
             cached_at_unix=int(now),
             rows=rows,
@@ -440,27 +480,27 @@ def eval_status(run: bool = False, history_limit: int = 15) -> EvalResponse:
         _persist_eval_run(response)
         # Bust the history cache so the next call picks up this new row.
         _eval_history_cache["updated_at"] = 0.0
-        response.history = _load_eval_history(limit=history_limit)
-        return response
+        return response.model_copy(update={"history": _load_eval_history(limit=history_limit)})
 
 
 # ─── /ops/trace ─────────────────────────────────────────────────────────────
+
 
 class TraceEvent(BaseModel):
     ts: float
     session_id: str
     actor_id: str
     tool: str
-    input: Dict[str, Any] = Field(default_factory=dict)
+    input: dict[str, Any] = Field(default_factory=dict)
 
 
 class TraceResponse(BaseModel):
-    events: List[TraceEvent]
+    events: list[TraceEvent]
     total: int
 
 
 @router.get("/ops/trace", response_model=TraceResponse)
-def trace_events(limit: int = 50, session_id: Optional[str] = None) -> TraceResponse:
+def trace_events(limit: int = 50, session_id: str | None = None) -> TraceResponse:
     """Recent tool-call traces from the in-process ring buffer (per API instance)."""
     items = agent_svc.recent_traces(limit=limit, session_id=session_id)
     return TraceResponse(
@@ -470,7 +510,9 @@ def trace_events(limit: int = 50, session_id: Optional[str] = None) -> TraceResp
                 session_id=str(it.get("session_id") or ""),
                 actor_id=str(it.get("actor_id") or "anonymous"),
                 tool=str(it.get("tool") or ""),
-                input=it.get("input") if isinstance(it.get("input"), dict) else {"_": it.get("input")},
+                input=(
+                    it.get("input") if isinstance(it.get("input"), dict) else {"_": it.get("input")}
+                ),
             )
             for it in items
         ],

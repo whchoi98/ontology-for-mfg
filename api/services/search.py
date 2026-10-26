@@ -3,32 +3,40 @@
 
 Mirrors retail's pipeline. RRF k=60 default. Returns Top-N rerank hits.
 """
+
 from __future__ import annotations
+
 import boto3
-from opensearchpy import OpenSearch, RequestsHttpConnection
-from requests_aws4auth import AWS4Auth
+from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection
+
 from api.config import settings
 from api.services.embedding import embed_text
 
 
 class HybridSearchService:
-    def __init__(self, host: str | None = None, region: str | None = None,
-                 index: str | None = None):
+    def __init__(
+        self, host: str | None = None, region: str | None = None, index: str | None = None
+    ):
         self.host = host or settings.opensearch_host
         self.region = region or settings.aws_region
         self.index = index or settings.opensearch_index
+        # Keep the *refreshable* credentials object, not frozen key strings:
+        # this service is a process-wide singleton and ECS rotates task-role
+        # keys hourly. AWSV4SignerAuth takes get_frozen_credentials() per
+        # request, so signatures follow the rotation instead of 403-ing
+        # until the task restarts.
         creds = boto3.Session().get_credentials()
-        auth = AWS4Auth(creds.access_key, creds.secret_key, self.region, "aoss",
-                        session_token=creds.token)
+        auth = AWSV4SignerAuth(creds, self.region, "aoss")
         self.client = OpenSearch(
             hosts=[{"host": self.host, "port": 443}],
-            http_auth=auth, use_ssl=True, verify_certs=True,
+            http_auth=auth,
+            use_ssl=True,
+            verify_certs=True,
             connection_class=RequestsHttpConnection,
         )
 
     def bm25(self, q: str, size: int = 50) -> list[dict]:
-        body = {"query": {"match": {"text": {"query": q, "analyzer": "nori_korean"}}},
-                "size": size}
+        body = {"query": {"match": {"text": {"query": q, "analyzer": "nori_korean"}}}, "size": size}
         res = self.client.search(index=self.index, body=body)
         return res["hits"]["hits"]
 

@@ -1,13 +1,16 @@
 # api/routers/scm_lane.py — Scenario H: global lane visualization + reroute simulation
 from __future__ import annotations
+
 import logging
 import random
 from itertools import product
+
 from fastapi import APIRouter, Body
 from pydantic import BaseModel
-from api.services.neptune import get_neptune
-from api.services.lane_router import simulate_reroute
+
 from api.services.carbon_calc import cbam_calc
+from api.services.lane_router import simulate_reroute
+from api.services.neptune import get_neptune, list_prop
 
 router = APIRouter(tags=["scm_lane"])
 log = logging.getLogger("mfg.scm_lane")
@@ -40,12 +43,17 @@ def _synthesize_lanes() -> list[dict]:
                 regs.append("CBAM")
             transit = {"SEA": 25, "AIR": 3, "RAIL": 18, "ROAD": 7}[mode] + rng.randint(-2, 4)
             lid += 1
-            out.append({
-                "id": f"AMZN-LANE-{lid:04d}",
-                # Web SCMMap expects origin_region/dest_region/transit_days (matches TradeLane schema)
-                "origin_region": o, "dest_region": d, "mode": mode,
-                "transit_days": max(2, transit), "regulations": regs,
-            })
+            out.append(
+                {
+                    "id": f"AMZN-LANE-{lid:04d}",
+                    # Web SCMMap expects origin_region/dest_region/transit_days (matches TradeLane schema)
+                    "origin_region": o,
+                    "dest_region": d,
+                    "mode": mode,
+                    "transit_days": max(2, transit),
+                    "regulations": regs,
+                }
+            )
     return out
 
 
@@ -59,12 +67,8 @@ def _normalise_lane(ln: dict) -> dict:
         out["dest_region"] = out["dest"]
     if "transit_days" not in out and "days" in out:
         out["transit_days"] = out["days"]
-    # regulations: never None or scalar
-    regs = out.get("regulations")
-    if regs is None:
-        out["regulations"] = []
-    elif isinstance(regs, str):
-        out["regulations"] = [regs] if regs else []
+    # regulations: never None or scalar (the loader stores them comma-joined)
+    out["regulations"] = list_prop(out.get("regulations"))
     return out
 
 
@@ -92,6 +96,7 @@ def list_lanes() -> dict:
 
     # Lightweight per-region counts so the frontend can display KPIs alongside the map
     from collections import Counter
+
     by_dest = Counter(ln["dest_region"] for ln in lanes)
     by_mode = Counter(ln["mode"] for ln in lanes)
     flagged = sum(1 for ln in lanes if ln["regulations"])
@@ -126,16 +131,25 @@ def reroute(req: LaneRerouteRequest = Body(...)) -> dict:
 
         # 2 dropped + 2 new lanes (use the same field names as TradeLane schema)
         dropped = [
-            {"id": f"AMZN-LANE-DROP-{i:03d}",
-              "origin_region": "CN", "dest_region": "US",
-              "mode": "SEA", "transit_days": 26, "regulations": [reg]}
+            {
+                "id": f"AMZN-LANE-DROP-{i:03d}",
+                "origin_region": "CN",
+                "dest_region": "US",
+                "mode": "SEA",
+                "transit_days": 26,
+                "regulations": [reg],
+            }
             for i in range(1, 3)
         ]
         new_lanes = [
-            {"id": f"AMZN-LANE-NEW-{i:03d}",
-              "origin_region": "MX", "dest_region": "US",
-              "mode": "ROAD", "transit_days": rng.randint(4, 10),
-              "regulations": ["USMCA-Auto75"]}
+            {
+                "id": f"AMZN-LANE-NEW-{i:03d}",
+                "origin_region": "MX",
+                "dest_region": "US",
+                "mode": "ROAD",
+                "transit_days": rng.randint(4, 10),
+                "regulations": ["USMCA-Auto75"],
+            }
             for i in range(1, 3)
         ]
         sim = {

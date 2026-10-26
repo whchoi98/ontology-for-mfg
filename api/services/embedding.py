@@ -8,17 +8,22 @@ Response shape differences:
   - Titan v2: {"embedding": [...1024 floats...], "inputTextTokenCount": N}
   - Cohere embed-v4 (global): {"embeddings": {"float": [[...1536 floats...]]}, ...}
 """
+
 from __future__ import annotations
+
 import json
 import logging
-import boto3
+
+from api.aws_clients import bedrock_runtime
 from api.config import settings
 
 log = logging.getLogger("mfg.embed")
 
 
 def embed_text(text: str) -> list[float]:
-    client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
+    # Shared cached client — creating one per call is not thread-safe
+    # (ops eval runs 8 hybrid searches → 8 embeds concurrently).
+    client = bedrock_runtime()
     model_id = settings.embed_model
 
     if "titan" in model_id:

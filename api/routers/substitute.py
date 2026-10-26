@@ -5,13 +5,17 @@ Endpoints:
 - GET  /api/substitute/samples?limit=N    — 좌측 picker용 후보 부품 리스트
 - POST /api/substitute                    — 원본 부품 → 대체 후보 + 점수 + 그래프
 """
+
 from __future__ import annotations
+
 import logging
 import random
-from typing import Optional
+
 from fastapi import APIRouter, Body, Query
 from pydantic import BaseModel
-from api.services.neptune import get_neptune
+
+from api.schemas import SubstituteResponse
+from api.services.neptune import get_neptune, list_prop
 
 router = APIRouter(tags=["substitute"])
 log = logging.getLogger("mfg.substitute")
@@ -28,33 +32,52 @@ class SubstituteRequest(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────
 
 _CAT_STANDARDS = {
-    "IC":         ["AEC-Q100", "JESD22"],
-    "PCB":        ["IPC-A-610", "IPC-J-STD-001"],
-    "Connector":  ["IPC-WHMA-A-620"],
+    "IC": ["AEC-Q100", "JESD22"],
+    "PCB": ["IPC-A-610", "IPC-J-STD-001"],
+    "Connector": ["IPC-WHMA-A-620"],
     "Mechanical": ["ISO-9001"],
-    "Display":    ["JESD51", "AEC-Q100"],
-    "Battery":    ["ISO-26262", "AEC-Q200"],
-    "Sensor":     ["AEC-Q100", "JESD22"],
-    "Power":      ["AEC-Q200", "ISO-9001"],
-    "Motor":      ["IATF-16949", "ISO-9001"],
-    "Memory":     ["JESD46", "JEP122"],
+    "Display": ["JESD51", "AEC-Q100"],
+    "Battery": ["ISO-26262", "AEC-Q200"],
+    "Sensor": ["AEC-Q100", "JESD22"],
+    "Power": ["AEC-Q200", "ISO-9001"],
+    "Motor": ["IATF-16949", "ISO-9001"],
+    "Memory": ["JESD46", "JEP122"],
 }
 
-_SUPPLIER_PREFIXES = ["Hanwha", "Daesun", "Sunwoo", "BlueOcean", "Vertex",
-                      "Apex", "Synthon", "Pacific", "Beacon", "Quantum"]
+_SUPPLIER_PREFIXES = [
+    "Hanwha",
+    "Daesun",
+    "Sunwoo",
+    "BlueOcean",
+    "Vertex",
+    "Apex",
+    "Synthon",
+    "Pacific",
+    "Beacon",
+    "Quantum",
+]
 
 
 def _category_for(component_id: str) -> str:
     cid = component_id.upper()
-    if "PCB" in cid: return "PCB"
-    if "MOT" in cid: return "Motor"
-    if "DIS" in cid: return "Display"
-    if "CON" in cid: return "Connector"
-    if "MEC" in cid: return "Mechanical"
-    if "BAT" in cid: return "Battery"
-    if "SEN" in cid: return "Sensor"
-    if "POW" in cid: return "Power"
-    if "MEM" in cid: return "Memory"
+    if "PCB" in cid:
+        return "PCB"
+    if "MOT" in cid:
+        return "Motor"
+    if "DIS" in cid:
+        return "Display"
+    if "CON" in cid:
+        return "Connector"
+    if "MEC" in cid:
+        return "Mechanical"
+    if "BAT" in cid:
+        return "Battery"
+    if "SEN" in cid:
+        return "Sensor"
+    if "POW" in cid:
+        return "Power"
+    if "MEM" in cid:
+        return "Memory"
     return "IC"
 
 
@@ -105,32 +128,41 @@ def _synth_candidates(original: dict, top_n: int, same_supplier_ok: bool) -> lis
             spec_tags.append(rng.choice(["-40°C ~ +85°C", "-40°C ~ +105°C", "-25°C ~ +85°C"]))
             spec_tags.append(rng.choice(["BGA-256", "BGA-484", "QFN-48", "TQFP-64"]))
         elif cat in ("Display",):
-            spec_tags.append(rng.choice(["8\"", "10.1\"", "12.3\"", "15.6\""]))
+            spec_tags.append(rng.choice(['8"', '10.1"', '12.3"', '15.6"']))
             spec_tags.append(rng.choice(["QHD", "FHD", "HD"]))
 
         # Score: 100 base, deduct for price/leadtime delta, add for shared standards count
-        price_delta_pct = round(((unit_price - base_price) / base_price) * 100, 1) if base_price else 0
-        score = 100 - abs(price_delta_pct) * 0.5 - max(0, leadtime - original["leadtime_days"]) * 1.0 + len(shared) * 5
+        price_delta_pct = (
+            round(((unit_price - base_price) / base_price) * 100, 1) if base_price else 0
+        )
+        score = (
+            100
+            - abs(price_delta_pct) * 0.5
+            - max(0, leadtime - original["leadtime_days"]) * 1.0
+            + len(shared) * 5
+        )
         if not rohs and original["rohs_compliant"]:
             score -= 15
         score = max(40, min(100, round(score, 1)))
 
-        out.append({
-            "id": alt_id,
-            "name": f"{sup_name} {cat}-{rng.randint(100, 999)}",
-            "category": cat,
-            "supplier_id": sup_id,
-            "supplier_name": f"{sup_name} Industries",
-            "unit_price_usd": unit_price,
-            "price_delta_pct": price_delta_pct,
-            "leadtime_days": leadtime,
-            "leadtime_delta_days": leadtime - original["leadtime_days"],
-            "rohs_compliant": rohs,
-            "shared_standards": shared,
-            "spec_tags": spec_tags,
-            "stock_status": rng.choice(["충분", "충분", "부족", "주문생산"]),
-            "score": score,
-        })
+        out.append(
+            {
+                "id": alt_id,
+                "name": f"{sup_name} {cat}-{rng.randint(100, 999)}",
+                "category": cat,
+                "supplier_id": sup_id,
+                "supplier_name": f"{sup_name} Industries",
+                "unit_price_usd": unit_price,
+                "price_delta_pct": price_delta_pct,
+                "leadtime_days": leadtime,
+                "leadtime_delta_days": leadtime - original["leadtime_days"],
+                "rohs_compliant": rohs,
+                "shared_standards": shared,
+                "spec_tags": spec_tags,
+                "stock_status": rng.choice(["충분", "충분", "부족", "주문생산"]),
+                "score": score,
+            }
+        )
 
     out.sort(key=lambda c: -c["score"])
     return out
@@ -138,14 +170,16 @@ def _synth_candidates(original: dict, top_n: int, same_supplier_ok: bool) -> lis
 
 def _build_subgraph(original: dict, candidates: list[dict]) -> dict:
     """Original + Standards + Candidate alternatives — color-coded subgraph."""
-    nodes: list[dict] = [{
-        "data": {
-            "id": original["id"],
-            "label": "Component",
-            "name_ko": original["name"],
-            "name": original["name"],
+    nodes: list[dict] = [
+        {
+            "data": {
+                "id": original["id"],
+                "label": "Component",
+                "name_ko": original["name"],
+                "name": original["name"],
+            }
         }
-    }]
+    ]
     edges: list[dict] = []
     seen_std: set[str] = set()
     for std in original["standards"]:
@@ -153,27 +187,52 @@ def _build_subgraph(original: dict, candidates: list[dict]) -> dict:
         if sid not in seen_std:
             nodes.append({"data": {"id": sid, "label": "Standard", "name_ko": std, "name": std}})
             seen_std.add(sid)
-        edges.append({"data": {"id": f"e_orig_{std}", "source": original["id"], "target": sid, "type": "CONFORMS_TO"}})
-    for i, c in enumerate(candidates):
-        nodes.append({
-            "data": {
-                "id": c["id"], "label": "Component",
-                "name_ko": c["name"], "name": c["name"],
-                "score": c["score"],
+        edges.append(
+            {
+                "data": {
+                    "id": f"e_orig_{std}",
+                    "source": original["id"],
+                    "target": sid,
+                    "type": "CONFORMS_TO",
+                }
             }
-        })
+        )
+    for i, c in enumerate(candidates):
+        nodes.append(
+            {
+                "data": {
+                    "id": c["id"],
+                    "label": "Component",
+                    "name_ko": c["name"],
+                    "name": c["name"],
+                    "score": c["score"],
+                }
+            }
+        )
         for std in c["shared_standards"]:
             sid = f"STD-{std}"
             if sid not in seen_std:
-                nodes.append({"data": {"id": sid, "label": "Standard", "name_ko": std, "name": std}})
+                nodes.append(
+                    {"data": {"id": sid, "label": "Standard", "name_ko": std, "name": std}}
+                )
                 seen_std.add(sid)
-            edges.append({"data": {"id": f"e_{c['id']}_{std}_{i}", "source": c["id"], "target": sid, "type": "CONFORMS_TO"}})
+            edges.append(
+                {
+                    "data": {
+                        "id": f"e_{c['id']}_{std}_{i}",
+                        "source": c["id"],
+                        "target": sid,
+                        "type": "CONFORMS_TO",
+                    }
+                }
+            )
     return {"nodes": nodes, "edges": edges}
 
 
 # ─────────────────────────────────────────────────────────────────────────
 # Endpoints
 # ─────────────────────────────────────────────────────────────────────────
+
 
 @router.get("/substitute/samples")
 def samples(limit: int = Query(15, ge=1, le=50)) -> dict:
@@ -188,11 +247,13 @@ def samples(limit: int = Query(15, ge=1, le=50)) -> dict:
             cid = r.get("id")
             if not cid:
                 continue
-            items.append({
-                "id": cid,
-                "name": r.get("name") or cid,
-                "category": r.get("category") or _category_for(cid),
-            })
+            items.append(
+                {
+                    "id": cid,
+                    "name": r.get("name") or cid,
+                    "category": r.get("category") or _category_for(cid),
+                }
+            )
     except Exception as e:
         log.warning("Neptune samples query failed: %s", e)
 
@@ -200,11 +261,13 @@ def samples(limit: int = Query(15, ge=1, le=50)) -> dict:
         cats = list(_CAT_STANDARDS.keys())
         for i in range(limit):
             cat = cats[i % len(cats)]
-            items.append({
-                "id": f"AMZN-CMP-{cat[:3].upper()}-{i+1:05d}",
-                "name": f"{cat} 부품 {i+1:05d}",
-                "category": cat,
-            })
+            items.append(
+                {
+                    "id": f"AMZN-CMP-{cat[:3].upper()}-{i+1:05d}",
+                    "name": f"{cat} 부품 {i+1:05d}",
+                    "category": cat,
+                }
+            )
 
     # Add "rich" properties to make the picker visually rich
     rng = random.Random("samples")
@@ -215,13 +278,10 @@ def samples(limit: int = Query(15, ge=1, le=50)) -> dict:
     return {"items": items, "total": len(items), "_synthetic": True}
 
 
-from api.schemas import SubstituteResponse
-
-
 @router.post("/substitute", response_model=SubstituteResponse)
 def substitute(req: SubstituteRequest = Body(...)) -> dict:
     # Original component lookup
-    original: Optional[dict] = None
+    original: dict | None = None
     try:
         rows = get_neptune().run_cypher(
             "MATCH (c:Component {id: $id}) RETURN c.id AS id, c.name AS name, "
@@ -230,14 +290,13 @@ def substitute(req: SubstituteRequest = Body(...)) -> dict:
         )
         if rows:
             r = rows[0]
-            stds = r.get("standards") or []
-            if isinstance(stds, str):
-                stds = [stds]
+            stds = list_prop(r.get("standards"))
             original = {
                 "id": r.get("id") or req.component_id,
                 "name": r.get("name") or req.component_id,
                 "category": r.get("category") or _category_for(req.component_id),
-                "standards": stds or _CAT_STANDARDS.get(_category_for(req.component_id), ["ISO-9001"]),
+                "standards": stds
+                or _CAT_STANDARDS.get(_category_for(req.component_id), ["ISO-9001"]),
                 "supplier_id": "AMZN-SUP1-007",
                 "supplier_name": "Hanwha Industries",
                 "unit_price_usd": round(random.Random(req.component_id).uniform(1.0, 10.0), 2),

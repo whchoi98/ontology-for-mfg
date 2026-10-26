@@ -3,9 +3,12 @@
 Bypasses CognitoBearerAuth middleware for all router tests so we can test
 endpoint logic without a live Cognito token.
 """
+
 from __future__ import annotations
-import pytest
+
 from unittest.mock import patch
+
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -22,4 +25,15 @@ def bypass_auth(request):
         return await call_next(request)
 
     with patch("api.middleware_auth.CognitoBearerAuth.dispatch", _passthrough):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def pass_guardrail(request):
+    """Unit suites never call Bedrock: stub the agent's guardrail check as a pass.
+    Tests that exercise guardrail behaviour patch `api.services.agent.check_guardrail`
+    themselves (an inner patch wins)."""
+    from api.services.guardrails import GuardrailVerdict
+
+    with patch("api.services.agent.check_guardrail", return_value=GuardrailVerdict(blocked=False)):
         yield
