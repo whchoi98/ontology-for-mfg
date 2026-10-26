@@ -105,6 +105,52 @@ describe("Manny popup page", () => {
   });
 });
 
+describe("MannyPage live agent steps", () => {
+  it("paints the note, the running tool and the wait before the answer arrives", () => {
+    renderManny();
+    fireEvent.click(screen.getByRole("button", { name: SAMPLE }));
+    const s = h.streams[0];
+    expect(screen.getByTestId("agent-waiting").textContent).toContain("질문을 분석하고 있습니다");
+
+    emit(s, { type: "delta", text: "단가 데이터를 조회합니다." });
+    expect(screen.getByText("단가 데이터를 조회합니다.")).toBeTruthy();
+    expect(screen.queryByTestId("agent-waiting")).toBeNull();
+
+    emit(s, { type: "tool_call", name: "neptune_query", args: { cypher: "MATCH (c:Component) RETURN c" } });
+    const card = screen.getByTestId("agent-tool-step");
+    expect(card.textContent).toContain("neptune_query");
+    expect(card.textContent).toContain("실행 중");
+    // The sentence before the tool call is now a progress note, not the answer.
+    expect(screen.getByTestId("agent-note-step").textContent).toContain("단가 데이터를 조회합니다.");
+
+    emit(s, { type: "tool_result", name: "neptune_query", result: { results: [{}, {}, {}], row_count: 3 } });
+    expect(card.textContent).toContain("3행");
+    expect(screen.getByTestId("agent-waiting").textContent).toContain("결과를 정리하고 있습니다");
+
+    emit(s, { type: "delta", text: "후보는 **SUP-0007**입니다." });
+    expect(screen.queryByTestId("agent-waiting")).toBeNull();
+    emit(s, { type: "stop", reason: "end_turn" });
+    expect(screen.getByText("SUP-0007")).toBeTruthy();
+  });
+
+  it("replays the notes and the answer as one paragraph-separated turn", () => {
+    renderManny();
+    fireEvent.click(screen.getByRole("button", { name: SAMPLE }));
+    const s = h.streams[0];
+    emit(s, { type: "delta", text: "조회합니다." });
+    emit(s, { type: "tool_call", name: "neptune_query", args: {} });
+    emit(s, { type: "tool_result", name: "neptune_query", result: { row_count: 0 } });
+    emit(s, { type: "delta", text: "결과 없음" });
+    emit(s, { type: "stop", reason: "end_turn" });
+    fireEvent.change(input(), { target: { value: "다음 질문" } });
+    fireEvent.click(screen.getByRole("button", { name: /전송/ }));
+    expect(h.streams[1].history).toEqual([
+      { role: "user", content: SAMPLE },
+      { role: "assistant", content: "조회합니다.\n\n결과 없음" },
+    ]);
+  });
+});
+
 describe("MannyPage conversation context", () => {
   it("replays only completed turns, and 새로 starts a clean context", () => {
     renderManny();

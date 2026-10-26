@@ -16,8 +16,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Bot, Send, RotateCcw, Sparkles } from 'lucide-react';
 import { chatStream } from '@/lib/api-client';
+import { type AgentStep, answerText, applyStepEvent } from '@/lib/agent-steps';
 import { historyFrom, isCompleteStop } from '@/lib/chat-history';
-import { MarkdownView } from '@/components/MarkdownView';
+import { AgentSteps } from '@/components/AgentSteps';
 import { useActivePersona } from '@/lib/persona-context';
 import { MANNY_CLOSE_MESSAGE } from '@/lib/manny-bridge';
 import { sseErrorText, stopReasonNotice } from '@/lib/sse-events';
@@ -77,8 +78,10 @@ const SAMPLE_QUERIES_BY_PERSONA: Record<Persona, string[]> = {
 
 type ChatMessage = {
   role: 'user' | 'assistant';
+  /** Assistant: every text step joined (lib/agent-steps answerText) — what history replays. */
   text: string;
-  toolLogs?: { tool: string; input: unknown }[];
+  /** Assistant: notes / tool calls / answer in stream order. */
+  steps?: AgentStep[];
   /** Stream failure notice (`error` event / network drop). */
   error?: string;
   /** Stopped with end_turn — only such answers are replayed as context (lib/chat-history). */
@@ -147,28 +150,22 @@ export default function MannyPopupPage() {
     if (!t || cancelRef.current) return;
     const streamId = ++streamIdRef.current;
     const history = historyFrom(messages); // completed turns before this question
-    setMessages((m) => [...m, { role: 'user', text: t }, { role: 'assistant', text: '', toolLogs: [] }]);
+    setMessages((m) => [...m, { role: 'user', text: t }, { role: 'assistant', text: '', steps: [] }]);
     setInput('');
     setStreaming(true);
     setFollowups([]);
 
-    let assistantText = '';
-    const toolLogs: { tool: string; input: unknown }[] = [];
+    let steps: AgentStep[] = [];
 
     cancelRef.current = chatStream(t, sessionId, active, (event) => {
       if (streamIdRef.current !== streamId) return; // superseded / cancelled
       const ev = event as { type: string; [k: string]: unknown };
-      if (ev.type === 'delta' || ev.type === 'token') {
-        const chunk = String(ev.text ?? ev.content ?? '');
-        assistantText += chunk;
-        setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, text: assistantText, toolLogs: [...toolLogs] })));
-      } else if (ev.type === 'tool_call') {
-        const tool = String(ev.name ?? '');
-        if (tool) {
-          toolLogs.push({ tool, input: ev.args ?? {} });
-          setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, toolLogs: [...toolLogs] })));
-        }
-      } else if (ev.type === 'suggested_followups') {
+      const next = applyStepEvent(steps, ev);
+      if (next !== steps) {
+        steps = next;
+        setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, steps, text: answerText(steps) })));
+      }
+      if (ev.type === 'suggested_followups') {
         const items = Array.isArray(ev.items) ? (ev.items as unknown[]).map(String) : [];
         setFollowups(items.slice(0, 3));
       } else if (ev.type === 'error') {
@@ -293,17 +290,15 @@ export default function MannyPopupPage() {
             {m.role === 'user' ? (
               <span className="whitespace-pre-wrap">{m.text}</span>
             ) : (
-              <MarkdownView text={m.text || (streaming && !m.error ? '…' : '')} />
+              <AgentSteps
+                steps={m.steps ?? []}
+                streaming={streaming && !m.error && i === messages.length - 1}
+              />
             )}
             {m.error && (
               <div role="alert" className="mt-2 flex items-start gap-1.5 text-xs rounded-sm border border-red-500/30 bg-red-500/10 text-red-300 px-2.5 py-1.5 whitespace-pre-wrap">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span>{m.error}</span>
-              </div>
-            )}
-            {m.toolLogs && m.toolLogs.length > 0 && (
-              <div className="mt-2 pt-2 border-t border-ink-700/40 text-[10px] text-ink-500 font-mono">
-                tool: {m.toolLogs.map((t) => t.tool).join(' · ')}
               </div>
             )}
           </div>

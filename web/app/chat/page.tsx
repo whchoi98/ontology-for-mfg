@@ -2,17 +2,21 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Download, FileText, RotateCcw } from "lucide-react";
 import { chatStream } from "@/lib/api-client";
+import { type AgentStep, answerText, applyStepEvent } from "@/lib/agent-steps";
 import { type ChatTurn, historyFrom, isCompleteStop } from "@/lib/chat-history";
 import { exportToPdf } from "@/lib/pdf-export";
 import { useActivePersona } from "@/lib/persona-context";
 import { sseErrorText, stopReasonNotice } from "@/lib/sse-events";
 import type { Persona } from "@/lib/types";
-import { MarkdownView } from "@/components/MarkdownView";
+import { AgentSteps } from "@/components/AgentSteps";
 import { ScenarioHeader } from "@/components/ScenarioHeader";
 
 type ChatMessage = {
   role: "user" | "assistant";
+  /** Assistant: every text step joined (lib/agent-steps answerText) — history + MD/PDF export. */
   text: string;
+  /** Assistant: notes / tool calls / answer in stream order. */
+  steps?: AgentStep[];
   toolLogs?: { tool: string; input: unknown }[];
   /** Stream failure notice (`error` event / network drop) shown under the bubble. */
   error?: string;
@@ -160,19 +164,27 @@ export default function ChatPage() {
     if (!trimmed || cancelRef.current) return;
     const streamId = ++streamIdRef.current;
     const userMsg: ChatMessage = { role: "user", text: trimmed };
-    setMessages((m) => [...m, userMsg, { role: "assistant", text: "", toolLogs: [] }]);
+    setMessages((m) => [...m, userMsg, { role: "assistant", text: "", steps: [], toolLogs: [] }]);
     setInput("");
     setStreaming(true);
     setToolLog([]);
     setPhases([]);
     setFollowups([]);
 
-    let assistantText = "";
+    let steps: AgentStep[] = [];
     const sessionToolLogs: { tool: string; input: unknown }[] = [];
 
     cancelRef.current = chatStream(trimmed, sid, persona, (event) => {
       if (streamIdRef.current !== streamId) return; // superseded / cancelled
       const ev = event as { type: string; [k: string]: unknown };
+
+      const nextSteps = applyStepEvent(steps, ev);
+      if (nextSteps !== steps) {
+        steps = nextSteps;
+        setMessages((m) => patchLastAssistant(m, (last) => ({
+          ...last, steps, text: answerText(steps), toolLogs: [...sessionToolLogs],
+        })));
+      }
 
       // Map MFG event vocabulary → retail-style phase chips + tool log
       if (ev.type === "guardrail") {
@@ -203,10 +215,6 @@ export default function ChatPage() {
           const last = p[p.length - 1];
           return [...p.slice(0, -1), { ...last, detail: hint }];
         });
-      } else if (ev.type === "delta" || ev.type === "token") {
-        const chunk = String(ev.text ?? ev.content ?? "");
-        assistantText += chunk;
-        setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, text: assistantText, toolLogs: [...sessionToolLogs] })));
       } else if (ev.type === "suggested_followups") {
         const items = Array.isArray(ev.items) ? (ev.items as unknown[]).map(String) : [];
         setFollowups(items.slice(0, 3));
@@ -470,7 +478,7 @@ export default function ChatPage() {
                 </div>
                 {m.role === "user"
                   ? <p className="text-sm whitespace-pre-wrap leading-relaxed text-ink-100">{m.text}</p>
-                  : <MarkdownView text={m.text || (streaming && !m.error ? "…" : "")} />}
+                  : <AgentSteps steps={m.steps ?? []} streaming={streaming && !m.error && i === messages.length - 1} />}
                 {m.error && (
                   <div role="alert" className="mt-2 flex items-start gap-1.5 text-xs rounded-sm border border-red-500/30 bg-red-500/10 text-red-300 px-2.5 py-1.5 whitespace-pre-wrap">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
