@@ -1,5 +1,6 @@
 # tests/ontology/test_schema_ttl.py
 from pathlib import Path
+
 import rdflib
 
 

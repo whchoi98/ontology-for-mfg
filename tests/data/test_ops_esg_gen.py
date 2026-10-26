@@ -1,7 +1,7 @@
 # tests/data/test_ops_esg_gen.py
-from data.synthetic.telemetry import generate_telemetry
-from data.synthetic.maintenance import generate_maintenance
 from data.synthetic.esg import generate_esg
+from data.synthetic.maintenance import generate_maintenance
+from data.synthetic.telemetry import generate_telemetry
 
 
 def test_telemetry_5000_sensors():
@@ -13,7 +13,8 @@ def test_maintenance_800():
     events = generate_maintenance(
         plant_ids=[f"AMZN-PLANT-{i:03d}" for i in range(1, 41)],
         component_ids=[f"AMZN-CMP-IC-{i:05d}" for i in range(50)],
-        seed=42)
+        seed=42,
+    )
     assert len(events) == 800
     kinds = {e.kind for e in events}
     assert {"PM", "CM", "PdM"}.issubset(kinds)

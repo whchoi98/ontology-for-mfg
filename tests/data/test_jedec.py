@@ -2,6 +2,7 @@
 from data.public.jedec import load_jedec_standards
 from data.schemas import Standard
 
+
 def test_load_jedec_returns_standards():
     items = load_jedec_standards()
     assert len(items) >= 8

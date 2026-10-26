@@ -1,7 +1,9 @@
 # tests/data/test_full_dataset.py
 """Run all generators end-to-end + validate cross-file integrity."""
+
 import json
 from pathlib import Path
+
 import pytest
 
 OUTPUT = Path(__file__).resolve().parents[2] / "data" / "output"
@@ -19,7 +21,10 @@ def run_all_generators():
 
 
 def _load(name: str) -> list[dict]:
-    return [json.loads(la) for la in (OUTPUT / f"{name}.ndjson").read_text(encoding="utf-8").splitlines()]
+    return [
+        json.loads(la)
+        for la in (OUTPUT / f"{name}.ndjson").read_text(encoding="utf-8").splitlines()
+    ]
 
 
 def test_total_node_count_within_target():
@@ -41,6 +46,7 @@ def test_components_reference_valid_modules():
 def test_lanes_have_balanced_modes():
     lanes = _load("lanes")
     from collections import Counter
+
     modes = Counter(la["mode"] for la in lanes)
     assert all(m >= 10 for m in modes.values()), f"Mode imbalance: {modes}"
 

@@ -5,8 +5,11 @@ Uses the same converse() path as the chat agent (which is proven to work via
 SSE smoke tests), instead of legacy invoke_model + tool_choice. converse has
 native tool support across CRIP profiles for Sonnet 4.6.
 """
+
 from __future__ import annotations
+
 import logging
+
 from api.aws_clients import bedrock_runtime
 from api.config import settings
 
@@ -15,23 +18,56 @@ log = logging.getLogger("mfg.eight_d_writer")
 _TOOL_INPUT_SCHEMA = {
     "type": "object",
     "properties": {
-        "d1_team":        {"type": "string", "description": "Team formation — cross-functional 4-6 명"},
-        "d2_problem":     {"type": "string", "description": "Problem statement with 5W1H + ppm/severity numbers"},
-        "d3_containment": {"type": "string", "description": "Interim containment — quarantine, ship hold, AQL stricten"},
-        "d4_root_cause":  {"type": "string", "description": "Root cause analysis — 5-Why or Ishikawa, cite specific drift"},
-        "d5_corrective":  {"type": "string", "description": "Permanent corrective action — process change, qualification"},
-        "d6_implemented": {"type": "string", "description": "Implementation — line/changeover schedule, monitoring window"},
-        "d7_prevention":  {"type": "string", "description": "Prevent recurrence — SPC chart, poka-yoke, supplier audit"},
-        "d8_closure":     {"type": "string", "description": "Closure — verification criteria, lessons learned, recognition"},
+        "d1_team": {"type": "string", "description": "Team formation — cross-functional 4-6 명"},
+        "d2_problem": {
+            "type": "string",
+            "description": "Problem statement with 5W1H + ppm/severity numbers",
+        },
+        "d3_containment": {
+            "type": "string",
+            "description": "Interim containment — quarantine, ship hold, AQL stricten",
+        },
+        "d4_root_cause": {
+            "type": "string",
+            "description": "Root cause analysis — 5-Why or Ishikawa, cite specific drift",
+        },
+        "d5_corrective": {
+            "type": "string",
+            "description": "Permanent corrective action — process change, qualification",
+        },
+        "d6_implemented": {
+            "type": "string",
+            "description": "Implementation — line/changeover schedule, monitoring window",
+        },
+        "d7_prevention": {
+            "type": "string",
+            "description": "Prevent recurrence — SPC chart, poka-yoke, supplier audit",
+        },
+        "d8_closure": {
+            "type": "string",
+            "description": "Closure — verification criteria, lessons learned, recognition",
+        },
     },
-    "required": ["d1_team", "d2_problem", "d3_containment", "d4_root_cause",
-                 "d5_corrective", "d6_implemented", "d7_prevention", "d8_closure"],
+    "required": [
+        "d1_team",
+        "d2_problem",
+        "d3_containment",
+        "d4_root_cause",
+        "d5_corrective",
+        "d6_implemented",
+        "d7_prevention",
+        "d8_closure",
+    ],
 }
 
 
-def draft_eight_d(*, incident_title: str, incident_desc: str = "",
-                   similar_reports: list[str] | None = None,
-                   standards: list[str] | None = None) -> dict:
+def draft_eight_d(
+    *,
+    incident_title: str,
+    incident_desc: str = "",
+    similar_reports: list[str] | None = None,
+    standards: list[str] | None = None,
+) -> dict:
     """Return a dict with all 8 D-section keys. Raises on Bedrock failure (caller falls back)."""
     similar = "\n".join(similar_reports or [])
     stds = ", ".join(standards or [])
@@ -55,17 +91,23 @@ def draft_eight_d(*, incident_title: str, incident_desc: str = "",
     req = {
         "modelId": model_id,
         "messages": [{"role": "user", "content": [{"text": user_text}]}],
-        "system": [{"text": "You are an automotive quality engineer writing AIAG-compliant 8D reports. "
-                             "Each D-section is 1–3 Korean technical sentences with concrete numbers."}],
+        "system": [
+            {
+                "text": "You are an automotive quality engineer writing AIAG-compliant 8D reports. "
+                "Each D-section is 1–3 Korean technical sentences with concrete numbers."
+            }
+        ],
         "inferenceConfig": {"maxTokens": 1500, "temperature": 0.3},
         "toolConfig": {
-            "tools": [{
-                "toolSpec": {
-                    "name": "emit_eight_d",
-                    "description": "Emit a complete 8D report with all 8 sections.",
-                    "inputSchema": {"json": _TOOL_INPUT_SCHEMA},
+            "tools": [
+                {
+                    "toolSpec": {
+                        "name": "emit_eight_d",
+                        "description": "Emit a complete 8D report with all 8 sections.",
+                        "inputSchema": {"json": _TOOL_INPUT_SCHEMA},
+                    }
                 }
-            }],
+            ],
             "toolChoice": {"tool": {"name": "emit_eight_d"}},
         },
     }

@@ -1,6 +1,8 @@
 # api/services/kb.py
 """Bedrock Knowledge Base retrieve."""
+
 from __future__ import annotations
+
 from api.aws_clients import bedrock_agent_runtime
 from api.config import settings
 

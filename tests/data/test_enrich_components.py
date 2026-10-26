@@ -1,6 +1,6 @@
 # tests/data/test_enrich_components.py
-from data.synthetic.enrich_components import enrich_components_with_standards
 from data.schemas import Component
+from data.synthetic.enrich_components import enrich_components_with_standards
 
 
 def test_enrich_assigns_standards():

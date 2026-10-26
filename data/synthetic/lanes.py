@@ -6,11 +6,14 @@ Coverage rules:
 - Lanes ending in PL (proxy for EU) -> tagged CBAM
 - Other lanes: untagged
 """
+
 from __future__ import annotations
+
 import argparse
 import random
 from itertools import product
 from pathlib import Path
+
 from data.schemas import TradeLane
 
 OUTPUT = Path(__file__).resolve().parents[1] / "output" / "lanes.ndjson"
@@ -46,14 +49,16 @@ def generate_lanes(seed: int = 42) -> list[TradeLane]:
                 break
             mode = rng.choice(MODES)
             lid += 1
-            out.append(TradeLane(
-                id=f"AMZN-LANE-{lid:04d}",
-                origin_region=o,
-                dest_region=d,
-                mode=mode,  # type: ignore[arg-type]
-                transit_days=_transit_days(o, d, mode),
-                regulations=_regs_for(o, d),
-            ))
+            out.append(
+                TradeLane(
+                    id=f"AMZN-LANE-{lid:04d}",
+                    origin_region=o,
+                    dest_region=d,
+                    mode=mode,  # type: ignore[arg-type]
+                    transit_days=_transit_days(o, d, mode),
+                    regulations=_regs_for(o, d),
+                )
+            )
     return out
 
 

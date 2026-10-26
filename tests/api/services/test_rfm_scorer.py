@@ -1,5 +1,5 @@
 # tests/api/services/test_rfm_scorer.py
-from api.services.rfm_scorer import score_supplier, rank_suppliers
+from api.services.rfm_scorer import rank_suppliers, score_supplier
 
 
 def test_score_returns_0_to_1():

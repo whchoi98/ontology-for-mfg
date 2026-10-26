@@ -3,9 +3,12 @@
 Mirrors retail's `data/synthetic/_bedrock.py` pattern. Uses Anthropic's tool-use
 to enforce structured array output, parsed back into pydantic models by callers.
 """
+
 from __future__ import annotations
+
 import json
 import os
+
 import boto3
 
 
@@ -43,15 +46,17 @@ def call_with_tool(
     pydantic ValidationError (typically by reducing batch size).
     """
     client = boto3.client("bedrock-runtime", region_name=region)
-    body = json.dumps({
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "system": system,
-        "messages": [{"role": "user", "content": user}],
-        "tools": [tool],
-        "tool_choice": {"type": "tool", "name": tool["name"]},
-    })
+    body = json.dumps(
+        {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
+            "tools": [tool],
+            "tool_choice": {"type": "tool", "name": tool["name"]},
+        }
+    )
     resp = client.invoke_model(modelId=model_id, body=body)
     payload = json.loads(resp["body"].read())
     for block in payload.get("content", []):

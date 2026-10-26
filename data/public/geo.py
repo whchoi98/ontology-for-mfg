@@ -4,17 +4,19 @@ Note: GeoJSON polygons themselves are loaded by the web frontend (Plan 2)
 via Natural Earth (1:50m countries). This module only carries name/code metadata
 for graph nodes.
 """
+
 from __future__ import annotations
+
 from data.schemas import Region
 
 _RAW: list[tuple[str, str, str]] = [
     ("KR", "Korea, Republic of", "대한민국"),
-    ("CN", "China",               "중국"),
-    ("VN", "Vietnam",             "베트남"),
-    ("MX", "Mexico",              "멕시코"),
-    ("PL", "Poland",              "폴란드"),
-    ("US", "United States",       "미국"),
-    ("IN", "India",               "인도"),
+    ("CN", "China", "중국"),
+    ("VN", "Vietnam", "베트남"),
+    ("MX", "Mexico", "멕시코"),
+    ("PL", "Poland", "폴란드"),
+    ("US", "United States", "미국"),
+    ("IN", "India", "인도"),
 ]
 
 

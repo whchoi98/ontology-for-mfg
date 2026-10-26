@@ -7,9 +7,10 @@ Algorithm:
    satisfy the new rule (e.g. MX->US instead of CN->US for IRA-30D)
 3. Return delta: lanes_to_drop + new_lanes + cost_impact
 """
-from __future__ import annotations
-from api.services.neptune import get_neptune
 
+from __future__ import annotations
+
+from api.services.neptune import get_neptune
 
 _EVENT_TO_REGULATION = {
     "IRA_2026": "IRA-30D",

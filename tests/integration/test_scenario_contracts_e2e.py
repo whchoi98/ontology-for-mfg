@@ -9,6 +9,7 @@ If a router is renamed, dropped, or loses its response_model declaration,
 these will fail-fast — preventing the kind of contract regression that
 the harness-eval flagged as "completeness=5" in v0.4.0.
 """
+
 from fastapi.testclient import TestClient
 
 from api.main import app
@@ -51,7 +52,9 @@ def test_sync_endpoints_declare_response_model():
     for p in sync_scenarios:
         op = paths.get(p, {}).get("post") or paths.get(p, {}).get("get") or {}
         responses = op.get("responses", {})
-        ok_schema = responses.get("200", {}).get("content", {}).get("application/json", {}).get("schema")
+        ok_schema = (
+            responses.get("200", {}).get("content", {}).get("application/json", {}).get("schema")
+        )
         if not ok_schema or ok_schema == {}:
             weak.append(p)
     assert not weak, f"endpoints missing response_model schema: {weak}"

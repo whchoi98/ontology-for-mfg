@@ -1,5 +1,6 @@
 # tests/api/services/test_eight_d_writer.py
 from unittest.mock import patch
+
 from api.services.eight_d_writer import draft_eight_d
 
 
@@ -41,7 +42,13 @@ def test_draft_returns_8_sections(mock_br):
     assert all(
         k in out
         for k in (
-            "d1_team", "d2_problem", "d3_containment", "d4_root_cause",
-            "d5_corrective", "d6_implemented", "d7_prevention", "d8_closure",
+            "d1_team",
+            "d2_problem",
+            "d3_containment",
+            "d4_root_cause",
+            "d5_corrective",
+            "d6_implemented",
+            "d7_prevention",
+            "d8_closure",
         )
     )

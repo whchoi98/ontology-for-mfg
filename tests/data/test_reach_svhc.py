@@ -1,6 +1,7 @@
 # tests/data/test_reach_svhc.py
-from data.public.reach_svhc import load_svhc_substances, load_reach_regulation
-from data.schemas import Substance, Regulation
+from data.public.reach_svhc import load_reach_regulation, load_svhc_substances
+from data.schemas import Regulation, Substance
+
 
 def test_load_svhc():
     subs = load_svhc_substances()
@@ -9,7 +10,7 @@ def test_load_svhc():
     assert all(s.reach_svhc for s in subs)
     cas_ids = {s.cas_id for s in subs}
     # spot-check well-known SVHC entries
-    assert "117-81-7" in cas_ids   # DEHP
+    assert "117-81-7" in cas_ids  # DEHP
     assert "1303-86-2" in cas_ids  # Boric acid
 
 

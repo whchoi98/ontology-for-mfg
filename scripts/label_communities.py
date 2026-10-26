@@ -13,6 +13,7 @@ Reads `graphify-out/graph.json`, groups nodes by community, asks Claude Haiku
 Run from repo root:
     python3 scripts/label_communities.py
 """
+
 from __future__ import annotations
 
 import concurrent.futures
@@ -65,8 +66,10 @@ def gather_communities(graph: dict) -> dict[int, dict]:
     for cid, nodes in by_comm.items():
         # Pick top-N nodes by degree if degree available, else first-N.
         nodes_sorted = sorted(nodes, key=lambda x: -float(x.get("degree", 0)))
-        labels = [n.get("label") or n.get("norm_label") or n.get("id") or "?"
-                  for n in nodes_sorted[:MAX_NODES_PER_COMMUNITY]]
+        labels = [
+            n.get("label") or n.get("norm_label") or n.get("id") or "?"
+            for n in nodes_sorted[:MAX_NODES_PER_COMMUNITY]
+        ]
         files = sorted({n.get("source_file") for n in nodes if n.get("source_file")})
         summaries[cid] = {
             "node_count": len(nodes),
@@ -167,7 +170,9 @@ def patch_graph_html(labels: dict[int, str]) -> None:
     PUBLIC_GRAPH_HTML.write_text(new)
     LOG.info(
         "patched %s — %d node tooltips + %d legend entries",
-        PUBLIC_GRAPH_HTML.relative_to(ROOT), node_replaced, legend_replaced,
+        PUBLIC_GRAPH_HTML.relative_to(ROOT),
+        node_replaced,
+        legend_replaced,
     )
 
 
@@ -177,7 +182,7 @@ def patch_report_md(labels: dict[int, str]) -> None:
     #   ### Community 0 - "Community 0"
     #   - [[_COMMUNITY_Community 0|Community 0]]
     pat_h = re.compile(r'^### Community (\d+) - "Community \1"', re.M)
-    pat_li = re.compile(r'\[\[_COMMUNITY_Community (\d+)\|Community \1\]\]')
+    pat_li = re.compile(r"\[\[_COMMUNITY_Community (\d+)\|Community \1\]\]")
 
     def _h(m: re.Match[str]) -> str:
         cid = int(m.group(1))
@@ -187,7 +192,7 @@ def patch_report_md(labels: dict[int, str]) -> None:
     def _li(m: re.Match[str]) -> str:
         cid = int(m.group(1))
         name = labels.get(cid, f"Community {cid}")
-        return f'[[_COMMUNITY_Community {cid}|{name}]]'
+        return f"[[_COMMUNITY_Community {cid}|{name}]]"
 
     new = pat_h.sub(_h, text)
     new = pat_li.sub(_li, new)
@@ -210,8 +215,7 @@ def main() -> int:
 
     # Persist a flat label map alongside the artefacts for inspection.
     (PUBLIC_DIR / "community_labels.json").write_text(
-        json.dumps({str(k): v for k, v in sorted(labels.items())},
-                    ensure_ascii=False, indent=2)
+        json.dumps({str(k): v for k, v in sorted(labels.items())}, ensure_ascii=False, indent=2)
     )
     LOG.info("wrote %s", (PUBLIC_DIR / "community_labels.json").relative_to(ROOT))
 

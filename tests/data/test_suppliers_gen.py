@@ -1,6 +1,6 @@
 # tests/data/test_suppliers_gen.py
-from data.synthetic.suppliers import generate_suppliers
 from data.schemas import SubSupplier
+from data.synthetic.suppliers import generate_suppliers
 
 
 def test_supplier_counts():

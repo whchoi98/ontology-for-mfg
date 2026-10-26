@@ -1,5 +1,7 @@
 """Mock-only test — actual Bedrock calls are made by generators in later tasks."""
+
 from unittest.mock import MagicMock, patch
+
 from data.synthetic._bedrock import array_tool_schema, call_with_tool
 
 
@@ -19,11 +21,14 @@ def test_call_with_tool_parses_response(mock_boto):
     mock_client = MagicMock()
     mock_boto.return_value = mock_client
     mock_client.invoke_model.return_value = {
-        "body": MagicMock(read=lambda: b'{"content": [{"type": "tool_use", "name": "emit_x", "input": {"items": [{"id": "X1"}]}}]}'),
+        "body": MagicMock(
+            read=lambda: b'{"content": [{"type": "tool_use", "name": "emit_x", "input": {"items": [{"id": "X1"}]}}]}'
+        ),
     }
     items = call_with_tool(
         model_id="anthropic.claude-sonnet-4-6-v1:0",
-        system="x", user="y",
+        system="x",
+        user="y",
         tool=array_tool_schema("emit_x", "x", {"type": "object"}),
     )
     assert items == [{"id": "X1"}]

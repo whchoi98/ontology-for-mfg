@@ -7,7 +7,9 @@ of Concern) for full $7,500 credit.
 USMCA (US-Mexico-Canada Agreement) Chapter 4: regional value content (RVC)
 rules. Passenger vehicle requires 75% RVC by 2025-07.
 """
+
 from __future__ import annotations
+
 from data.schemas import Regulation
 
 # FEOC list per Treasury Notice 2023-65 (covered nations)
@@ -18,7 +20,7 @@ USMCA_AUTO_VALUE_CONTENT_RULES: dict[str, int] = {
     "passenger_vehicle": 75,
     "light_truck": 75,
     "heavy_truck": 70,
-    "core_part": 75,        # engine, transmission, body, chassis, axle, suspension, steering, advanced battery
+    "core_part": 75,  # engine, transmission, body, chassis, axle, suspension, steering, advanced battery
     "principal_part": 65,
     "complementary_part": 60,
 }

@@ -1,13 +1,14 @@
 # tests/data/test_customers_plants_lanes_gen.py
 from data.synthetic.customers import generate_customers
-from data.synthetic.plants import generate_plants
 from data.synthetic.lanes import generate_lanes
+from data.synthetic.plants import generate_plants
 
 
 def test_customers_30_segments():
     customers = generate_customers(seed=42)
     assert len(customers) == 30
     from collections import Counter
+
     seg = Counter(c.segment for c in customers)
     assert seg["AUTO_OEM"] == 5
     assert seg["TIER1"] == 8

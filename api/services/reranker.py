@@ -4,26 +4,32 @@
 If the configured rerank model is not available in the current region,
 falls back to RRF-ordered results with a fake rerank_score based on position.
 """
+
 from __future__ import annotations
+
 import json
 import logging
+
 from api.aws_clients import bedrock_runtime
 from api.config import settings
 
 log = logging.getLogger("mfg.reranker")
 
 
-def rerank(query: str, documents: list[dict], top_n: int = 10,
-            text_key: str = "text") -> list[dict]:
+def rerank(
+    query: str, documents: list[dict], top_n: int = 10, text_key: str = "text"
+) -> list[dict]:
     if not documents:
         return []
     try:
-        body = json.dumps({
-            "query": query,
-            "documents": [d.get(text_key, "") for d in documents],
-            "top_n": top_n,
-            "api_version": 2,
-        })
+        body = json.dumps(
+            {
+                "query": query,
+                "documents": [d.get(text_key, "") for d in documents],
+                "top_n": top_n,
+                "api_version": 2,
+            }
+        )
         resp = bedrock_runtime().invoke_model(modelId=settings.rerank_model, body=body)
         payload = json.loads(resp["body"].read())
         out: list[dict] = []

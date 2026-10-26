@@ -1,5 +1,6 @@
 # ontology/adapters/jedec_to_ks.py
 """JEDEC -> KS C IEC mapping. Curated from KATS (Korean Agency for Technology and Standards) cross-walks."""
+
 from __future__ import annotations
 
 

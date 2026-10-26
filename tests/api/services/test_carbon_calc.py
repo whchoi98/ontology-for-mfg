@@ -1,10 +1,11 @@
 # tests/api/services/test_carbon_calc.py
-from api.services.carbon_calc import scope_1_2_3, cbam_calc
+from api.services.carbon_calc import cbam_calc, scope_1_2_3
 
 
 def test_scope_sum_positive():
-    out = scope_1_2_3(plant_id="AMZN-PLANT-001",
-                      direct_kg_co2=1000, electricity_kwh=5000, upstream_tons=10.5)
+    out = scope_1_2_3(
+        plant_id="AMZN-PLANT-001", direct_kg_co2=1000, electricity_kwh=5000, upstream_tons=10.5
+    )
     assert out["scope_1_t"] > 0 and out["scope_2_t"] > 0 and out["scope_3_t"] > 0
 
 

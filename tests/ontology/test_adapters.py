@@ -1,7 +1,7 @@
 # tests/ontology/test_adapters.py
+from ontology.adapters.cbam_to_kets import cbam_cn_to_kets_factor
 from ontology.adapters.jedec_to_ks import jedec_to_ks_mapping
 from ontology.adapters.reach_to_kreach import reach_svhc_to_kreach
-from ontology.adapters.cbam_to_kets import cbam_cn_to_kets_factor
 
 
 def test_jedec_to_ks():

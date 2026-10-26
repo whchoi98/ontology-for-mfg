@@ -3,7 +3,9 @@
 Reliability (OTD) / Frequency (consistency = inverse defect rate) / Monetary
 (responsiveness). Composite is geometric mean to penalize any-axis weakness.
 """
+
 from __future__ import annotations
+
 from math import pow
 
 

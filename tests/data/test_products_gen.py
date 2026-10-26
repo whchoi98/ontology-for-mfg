@@ -1,6 +1,6 @@
 # tests/data/test_products_gen.py
-from data.synthetic.products import generate_products
 from data.schemas import Product
+from data.synthetic.products import generate_products
 
 
 def test_generate_80_products_5_lines():
@@ -11,6 +11,7 @@ def test_generate_80_products_5_lines():
     assert lines == {"SmartFridge", "VisionOLED", "AutoCockpit", "FC-BGA", "eDrive"}
     # Each line has ~16 SKUs (allow small variance)
     from collections import Counter
+
     line_counts = Counter(p.line for p in products)
     assert all(14 <= c <= 18 for c in line_counts.values())
 

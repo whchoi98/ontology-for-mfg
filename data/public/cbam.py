@@ -5,7 +5,9 @@ definitive period from 2026-01 (importer pays CBAM certificates).
 Subset chosen to cover hi-tech mfg upstream (steel/aluminium for chassis,
 hydrogen/fertilizer not directly relevant but kept for completeness).
 """
+
 from __future__ import annotations
+
 from data.schemas import Regulation
 
 _CN_CODES: list[dict] = [

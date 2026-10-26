@@ -1,5 +1,10 @@
 # tests/data/test_us_trade.py
-from data.public.us_trade import load_ira_regulation, load_usmca_regulation, FEOC_COUNTRIES, USMCA_AUTO_VALUE_CONTENT_RULES
+from data.public.us_trade import (
+    FEOC_COUNTRIES,
+    USMCA_AUTO_VALUE_CONTENT_RULES,
+    load_ira_regulation,
+    load_usmca_regulation,
+)
 
 
 def test_ira():
