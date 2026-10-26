@@ -1,6 +1,6 @@
 # tests/data/test_boms_gen.py
+from data.schemas import Component, Module, RawMaterial
 from data.synthetic.boms import generate_boms
-from data.schemas import Module, Component, RawMaterial
 
 
 def test_generate_bom_counts():
@@ -19,3 +19,14 @@ def test_bom_edges_consistent():
     bom = generate_boms(product_ids=products, seed=42)
     # Every Module references at least one parent product
     assert all(len(m.parent_product_ids) >= 1 for m in bom["modules"])
+
+
+def test_demo_hero_component_exists():
+    """Demo samples (/chat, /compliance, /substitute, /price, Manny) all start from
+    AMZN-CMP-IC-00001. With the global counter the first IC was IC-00012, so the hero
+    part never existed in Neptune and every one of those demos fell back to synthetic."""
+    products = ["AMZN-HE-VisionOLED-001"] * 80
+    comps = generate_boms(product_ids=products, seed=42)["components"]
+    hero = [c for c in comps if c.id == "AMZN-CMP-IC-00001"]
+    assert len(hero) == 1 and hero[0].category == "IC"
+    assert len({c.id for c in comps}) == len(comps)

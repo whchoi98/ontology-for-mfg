@@ -2,19 +2,30 @@
 for the 4 사업부 view, but products in `data/synthetic/products.py` keep MAGNA
 as the per-SKU division for finer-grained provenance.
 """
+
 from __future__ import annotations
+
 import argparse
 from pathlib import Path
+
 from data.schemas import Manufacturer
 
 OUTPUT = Path(__file__).resolve().parents[1] / "output" / "manufacturers.ndjson"
 
 _RAW: list[tuple[str, str, str]] = [
-    ("AMZN-MFG-HA",      "AMZN Tech Home Appliance",   "HA"),
-    ("AMZN-MFG-HE",      "AMZN Tech Home Entertainment", "HE"),
-    ("AMZN-MFG-VS",      "AMZN Tech Vehicle Solutions", "VS"),
+    ("AMZN-MFG-HA", "AMZN Tech Home Appliance", "HA"),
+    ("AMZN-MFG-HE", "AMZN Tech Home Entertainment", "HE"),
+    ("AMZN-MFG-VS", "AMZN Tech Vehicle Solutions", "VS"),
     ("AMZN-MFG-INNOTEK", "AMZN Tech Innotek + Magna ePT JV", "INNOTEK"),
 ]
+
+
+def manufacturer_id_for_division(division: str | None) -> str | None:
+    """Division -> manufacturer id (MANUFACTURED_BY / OPERATES). MAGNA maps to
+    the INNOTEK JV manufacturer, per the module docstring."""
+    if not division:
+        return None
+    return f"AMZN-MFG-{'INNOTEK' if division == 'MAGNA' else division}"
 
 
 def generate_manufacturers() -> list[Manufacturer]:

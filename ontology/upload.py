@@ -1,13 +1,23 @@
 """Upload `ontology/schema.ttl` (OWL/RDF) to a Neptune cluster via SPARQL UPDATE.
 
-Loader (`data/load.py`) calls this once at the start of bootstrap, then loads
-property-graph data via openCypher. Schema is informative (used by SPARQL queries
-and KB indexing); openCypher operations don't enforce it.
+`loader/run.sh` calls this once at the start of bootstrap, then loads
+property-graph data via openCypher (`data/load_graph.py`). Schema is
+informative (used by SPARQL queries and KB indexing); openCypher operations
+don't enforce it.
+
+Re-runs *replace* the schema: the TTL lives in its own named graph
+(`registry.SCHEMA_GRAPH`) which is dropped before the insert, and legacy
+triples that older versions inserted into the default graph (subjects in the
+mfg namespace) are deleted — otherwise stale rdfs:domain / rdfs:range
+triples would survive every rename.
 """
+
 from __future__ import annotations
+
 import argparse
 import os
 from pathlib import Path
+
 import requests
 
 
@@ -58,7 +68,7 @@ def upload_schema_to_neptune(*, endpoint: str, schema_path: str | Path) -> None:
     import urllib.parse
 
     ttl_text = Path(schema_path).read_text(encoding="utf-8")
-    sparql = f"INSERT DATA {{ {_ttl_to_sparql_triples(ttl_text)} }}"
+    sparql = build_schema_update(ttl_text)
     url = f"{endpoint.rstrip('/')}/sparql"
     region = os.environ.get("AWS_REGION", "ap-northeast-2")
 
@@ -67,6 +77,19 @@ def upload_schema_to_neptune(*, endpoint: str, schema_path: str | Path) -> None:
     resp = _signed_post(url, body, "application/x-www-form-urlencoded", region)
     if resp.status_code >= 300:
         raise RuntimeError(f"SPARQL UPDATE failed [{resp.status_code}]: {resp.text}")
+
+
+def build_schema_update(ttl_text: str) -> str:
+    """SPARQL 1.1 UPDATE that replaces the mfg schema (pure; no network)."""
+    from ontology.registry import NAMESPACE, SCHEMA_GRAPH
+
+    triples = _ttl_to_sparql_triples(ttl_text)
+    return (
+        # legacy uploads went to the default graph — purge mfg-namespace subjects
+        f'DELETE {{ ?s ?p ?o }} WHERE {{ ?s ?p ?o . FILTER(STRSTARTS(STR(?s), "{NAMESPACE}")) }} ;\n'
+        f"DROP SILENT GRAPH <{SCHEMA_GRAPH}> ;\n"
+        f"INSERT DATA {{ GRAPH <{SCHEMA_GRAPH}> {{ {triples} }} }}"
+    )
 
 
 def _ttl_to_sparql_triples(ttl: str) -> str:
@@ -78,6 +101,7 @@ def _ttl_to_sparql_triples(ttl: str) -> str:
     out. Loader passes prefixes via the SPARQL query header instead.
     """
     import rdflib
+
     g = rdflib.Graph()
     g.parse(data=ttl, format="turtle")
     return g.serialize(format="ntriples")

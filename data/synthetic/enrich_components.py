@@ -8,40 +8,51 @@ Rules (deterministic):
 - Battery     -> ISO-26262 ASIL-D (Magna ePT)
 - ~5% of components in each category get assigned 1-2 SVHC/RoHS substances
   (deliberate to make Compliance E scenario meaningful).
+- Every component also declares 1-2 benign constituents
+  (`data/public/materials.py`) so "no declaration" never stands in for
+  "compliant". Drawn from a separate RNG — the problematic assignment above
+  is unchanged by it.
 """
+
 from __future__ import annotations
+
 import random
+
+from data.public.materials import BENIGN_CAS
 from data.schemas import Component
 
-
 _CATEGORY_STANDARDS: dict[str, list[str]] = {
-    "IC":         ["AEC-Q100", "JESD22"],
-    "PCB":        ["IPC-A-610", "IPC-J-STD-001"],
-    "Connector":  ["IPC-WHMA-A-620"],
+    "IC": ["AEC-Q100", "JESD22"],
+    "PCB": ["IPC-A-610", "IPC-J-STD-001"],
+    "Connector": ["IPC-WHMA-A-620"],
     "Mechanical": ["ISO-9001"],
-    "Display":    ["JESD51"],
-    "Battery":    ["ISO-26262", "AEC-Q200"],
-    "Sensor":     ["AEC-Q100", "JESD22"],
-    "Power":      ["AEC-Q200", "ISO-9001"],
-    "Motor":      ["IATF-16949", "ISO-9001"],
-    "Cable":      ["IPC-WHMA-A-620"],
-    "Optical":    ["JESD22"],
-    "Antenna":    ["AEC-Q100"],
-    "Memory":     ["JESD46", "JEP122"],
-    "Magnetic":   ["ISO-9001"],
+    "Display": ["JESD51"],
+    "Battery": ["ISO-26262", "AEC-Q200"],
+    "Sensor": ["AEC-Q100", "JESD22"],
+    "Power": ["AEC-Q200", "ISO-9001"],
+    "Motor": ["IATF-16949", "ISO-9001"],
+    "Cable": ["IPC-WHMA-A-620"],
+    "Optical": ["JESD22"],
+    "Antenna": ["AEC-Q100"],
+    "Memory": ["JESD46", "JEP122"],
+    "Magnetic": ["ISO-9001"],
 }
 
 # CAS IDs from REACH-SVHC + RoHS that we deliberately seed in ~5% of components
 _SVHC_PROBLEM_CAS = ["117-81-7", "7439-92-1", "7440-43-9", "32534-81-9", "84-69-5"]
 
 
-def enrich_components_with_standards(components: list[Component], *, seed: int = 42) -> list[Component]:
+def enrich_components_with_standards(
+    components: list[Component], *, seed: int = 42
+) -> list[Component]:
     rng = random.Random(seed)
+    decl_rng = random.Random(f"declared-substances-{seed}")
     out: list[Component] = []
     for c in components:
         stds = list(_CATEGORY_STANDARDS.get(c.category, ["ISO-9001"]))
         subs = []
         if rng.random() < 0.07:  # ~7% problematic (ensures ≥5% with seed=42)
             subs = rng.sample(_SVHC_PROBLEM_CAS, k=rng.randint(1, 2))
-        out.append(c.model_copy(update={"standards": stds, "substances": subs}))
+        benign = decl_rng.sample(BENIGN_CAS, k=decl_rng.randint(1, 2))
+        out.append(c.model_copy(update={"standards": stds, "substances": subs + benign}))
     return out

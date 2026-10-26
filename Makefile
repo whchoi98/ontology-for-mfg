@@ -1,5 +1,9 @@
 .PHONY: data test clean load load-schema load-graph load-search venv
 
+# Prefer the project venv (`make venv`); bare `python` does not exist on AL2023 and
+# the system python3 is 3.9. Override with `make <target> PYTHON=...` elsewhere.
+PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
+
 # ── developer venv (Python 3.12 per pyproject.toml) ───────────────────────────
 venv:
 	@command -v python3.12 >/dev/null 2>&1 || { echo "python3.12 required; on AL2023: sudo dnf install -y python3.12"; exit 1; }
@@ -10,17 +14,17 @@ venv:
 
 # ── synthetic data generation ─────────────────────────────────────────────────
 data:
-	python -m data.synthetic.products
-	python -m data.synthetic.manufacturers
-	python -m data.synthetic.boms
-	python -m data.synthetic.suppliers
-	python -m data.synthetic.customers
-	python -m data.synthetic.plants
-	python -m data.synthetic.lanes
-	python -m data.synthetic.incidents
-	python -m data.synthetic.telemetry
-	python -m data.synthetic.maintenance
-	python -m data.synthetic.esg
+	$(PYTHON) -m data.synthetic.products
+	$(PYTHON) -m data.synthetic.manufacturers
+	$(PYTHON) -m data.synthetic.boms
+	$(PYTHON) -m data.synthetic.suppliers
+	$(PYTHON) -m data.synthetic.customers
+	$(PYTHON) -m data.synthetic.plants
+	$(PYTHON) -m data.synthetic.lanes
+	$(PYTHON) -m data.synthetic.incidents
+	$(PYTHON) -m data.synthetic.telemetry
+	$(PYTHON) -m data.synthetic.maintenance
+	$(PYTHON) -m data.synthetic.esg
 
 # ── data loading into AWS (MUST run from inside retail VPC) ──────────────────
 # Neptune is in private subnets (VPC vpc-0dfa5610180dfa628).
@@ -41,15 +45,15 @@ load: load-schema load-graph load-search
 
 load-schema:
 	@echo "Uploading OWL/RDF schema to Neptune..."
-	python3 -m ontology.upload --endpoint "$(NEPTUNE_ENDPOINT)" --schema ontology/schema.ttl
+	$(PYTHON) -m ontology.upload --endpoint "$(NEPTUNE_ENDPOINT)" --schema ontology/schema.ttl
 
 load-graph:
-	@echo "Loading ~10,644 nodes + BOM edges into Neptune via openCypher..."
-	NEPTUNE_ENDPOINT="$(NEPTUNE_ENDPOINT)" python3 -m data.load_graph --bom-edges
+	@echo "Full graph reload (reset + ~10,844 nodes / 22 labels + 27 relationship types) via openCypher..."
+	NEPTUNE_ENDPOINT="$(NEPTUNE_ENDPOINT)" $(PYTHON) -m data.load_graph --reset
 
 load-search:
 	@echo "Indexing components into OpenSearch Serverless (mfg-search)..."
-	OPENSEARCH_HOST="$(OPENSEARCH_HOST)" AWS_REGION="$(AWS_REGION)" python3 -m data.load_search
+	OPENSEARCH_HOST="$(OPENSEARCH_HOST)" AWS_REGION="$(AWS_REGION)" $(PYTHON) -m data.load_search
 
 # ── verification queries (run from inside VPC after load) ────────────────────
 verify-graph:
@@ -59,7 +63,7 @@ verify-graph:
 	  -d '{"query":"MATCH (n) RETURN labels(n)[0] AS label, count(*) AS n ORDER BY n DESC LIMIT 25"}'
 
 test:
-	pytest -v
+	$(PYTHON) -m pytest -v
 
 clean:
 	rm -rf data/output/*.ndjson .pytest_cache __pycache__ */**/__pycache__
