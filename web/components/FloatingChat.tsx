@@ -17,13 +17,20 @@
  *    the popup-window version.
  *  - For any browser where the popup attempt fails at runtime (returns
  *    null / closed), we fall back to the modal too.
+ *  - The modal is hidden, not unmounted, on close — the iframe (and its
+ *    in-flight conversation / SSE stream) survives close → reopen. ESC
+ *    inside the iframe is forwarded by /manny via a same-origin
+ *    `postMessage` (see lib/manny-bridge.ts).
+ *  - The popup uses a named target so repeated clicks focus the same
+ *    window instead of spawning a new one each time.
  *
  *  Mascot: "Manny" — mirrors gcc's "Cally" sister-project pattern.
  *  Pattern ported from ontology-for-gcc's FloatingChat.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bot, X } from 'lucide-react';
 import { useActivePersona } from '@/lib/persona-context';
+import { isMannyCloseMessage } from '@/lib/manny-bridge';
 import type { Persona } from '@/lib/types';
 
 const PERSONA_LABEL: Record<Persona, string> = {
@@ -32,16 +39,38 @@ const PERSONA_LABEL: Record<Persona, string> = {
 
 const MFG_BRAND_GRADIENT = 'bg-gradient-to-br from-accent-700 via-accent-600 to-accent-400';
 
+/** Named window target — reused across clicks instead of `_blank`. */
+const MANNY_WINDOW_NAME = 'manny';
+
 export default function FloatingChat() {
   const { active } = useActivePersona();
   const [modalOpen, setModalOpen] = useState(false);
+  // Mounted on first open, then only hidden — keeps the iframe's chat alive.
+  const [modalMounted, setModalMounted] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const popupRef = useRef<Window | null>(null);
 
-  // ESC closes the iframe modal.
+  function showModal() {
+    setModalMounted(true);
+    setModalOpen(true);
+  }
+
+  // ESC closes the iframe modal — from the parent page directly, or forwarded
+  // by /manny when focus is inside the iframe.
   useEffect(() => {
     if (!modalOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setModalOpen(false); };
+    const onMessage = (e: MessageEvent) => {
+      if (isMannyCloseMessage(e, window.location.origin, iframeRef.current?.contentWindow)) {
+        setModalOpen(false);
+      }
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('message', onMessage);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('message', onMessage);
+    };
   }, [modalOpen]);
 
   function openMannyWindow() {
@@ -51,17 +80,32 @@ export default function FloatingChat() {
     // those as Chrome-like (their popup-blocker behavior matches).
     const isChromium = /Chrome/.test(ua);
     if (isChromium) {
-      setModalOpen(true);
+      showModal();
+      return;
+    }
+    const existing = popupRef.current;
+    if (existing && !existing.closed) {
+      try { existing.focus(); } catch { /* focus is best-effort */ }
       return;
     }
     const url = `${window.location.origin}/manny`;
     const features = 'popup=true,width=480,height=760,resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no';
-    const popup = window.open(url, '_blank', features);
+    // Open the named target with an empty URL first: a window that is already
+    // open (e.g. this page reloaded and lost popupRef) is returned as-is
+    // instead of being navigated — which would wipe its conversation.
+    const popup = window.open('', MANNY_WINDOW_NAME, features);
     if (!popup || popup.closed) {
       // Popup blocked or downgraded → in-page modal fallback.
-      setModalOpen(true);
+      showModal();
       return;
     }
+    try {
+      if (popup.location.href === 'about:blank') popup.location.href = url;
+    } catch {
+      // Unreadable location → not our same-origin /manny page; load it.
+      popup.location.href = url;
+    }
+    popupRef.current = popup;
     try { popup.focus(); } catch { /* cross-origin focus is fine to ignore */ }
   }
 
@@ -86,13 +130,21 @@ export default function FloatingChat() {
 
       {/* In-page iframe modal — used for Chromium browsers and as the
           popup-blocked fallback. Same-origin /manny → Cognito + SSE work
-          identically to the standalone window. */}
-      {modalOpen && (
+          identically to the standalone window. Hidden (not unmounted) on
+          close so the conversation survives a reopen. */}
+      {modalMounted && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          hidden={!modalOpen}
+          className={[
+            'fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm',
+            modalOpen ? 'flex' : 'hidden',
+          ].join(' ')}
           onClick={() => setModalOpen(false)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Manny 챗봇"
             className="relative w-[480px] h-[760px] max-h-[90vh] bg-ink-900 border border-accent-500/40 rounded-lg shadow-2xl shadow-blue-900/60 overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -114,6 +166,7 @@ export default function FloatingChat() {
               </button>
             </div>
             <iframe
+              ref={iframeRef}
               src="/manny"
               title="Manny 챗봇"
               className="flex-1 w-full border-0 bg-ink-950"

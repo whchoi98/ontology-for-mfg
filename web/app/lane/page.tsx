@@ -38,6 +38,8 @@ const MODE_TONE: Record<string, string> = {
 export default function LanePage() {
   const [lanes, setLanes] = useState<TradeLane[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [rerouteBanner, setRerouteBanner] = useState<RerouteResult | null>(null);
   const [droppedIds, setDroppedIds] = useState<string[]>([]);
   const [addedIds, setAddedIds] = useState<string[]>([]);
@@ -45,21 +47,37 @@ export default function LanePage() {
   const [regFilter, setRegFilter] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    api.lanes().then((r) => {
-      const data = r as { lanes?: TradeLane[] } | TradeLane[];
-      setLanes(Array.isArray(data) ? data : (data as { lanes?: TradeLane[] }).lanes ?? []);
-      setLoading(false);
-    });
+    let cancelled = false;
+    api.lanes()
+      .then((r) => {
+        if (cancelled) return;
+        const data = r as { lanes?: TradeLane[] } | TradeLane[];
+        setLanes(Array.isArray(data) ? data : (data as { lanes?: TradeLane[] }).lanes ?? []);
+      })
+      .catch((e) => {
+        if (!cancelled) setLoadError(`Lane 데이터 로딩 실패 — ${e instanceof Error ? e.message : String(e)}`);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   async function triggerReroute(event: string) {
     setRerouteBanner({ event, message: `${event} 재경로 계산 중...` });
-    const r = (await api.reroute(event)) as {
+    let r: {
       lanes?: TradeLane[];
       lanes_to_drop?: TradeLane[];
       new_lanes?: TradeLane[];
       message?: string;
     };
+    try {
+      r = (await api.reroute(event)) as typeof r;
+    } catch (e) {
+      setRerouteBanner({
+        event,
+        message: `${event} 재경로 계산 실패 — ${e instanceof Error ? e.message : String(e)}`,
+      });
+      return;
+    }
 
     const dropped = (r.lanes_to_drop ?? []).map((l) => l.id);
     const added = (r.new_lanes ?? []).map((l) => l.id);
@@ -90,12 +108,14 @@ export default function LanePage() {
 
   function clearReroute() {
     setRerouteBanner(null);
+    setExportError(null);
     setDroppedIds([]);
     setAddedIds([]);
   }
 
   async function downloadReroutePdf() {
     if (!rerouteBanner) return;
+    setExportError(null);
     const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
     const droppedLanes = rerouteBanner.lanes_to_drop ?? [];
     const addedLanes = rerouteBanner.new_lanes ?? [];
@@ -136,14 +156,19 @@ export default function LanePage() {
       accentColor: "#3b82f6",
     });
 
-    await exportToPdf({
-      title: `SCM Reroute — ${rerouteBanner.event}`,
-      subtitle: rerouteBanner.message,
-      meta: `차단 ${droppedLanes.length}건 · 신규 ${addedLanes.length}건 · 추출 ${stamp}`,
-      sections,
-      footer: `Ontology MFG · 글로벌 SCM lane 시뮬 · 합성 데이터 · 생성: ${stamp}`,
-      filename: `lane-reroute-${rerouteBanner.event.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
-    });
+    try {
+      await exportToPdf({
+        title: `SCM Reroute — ${rerouteBanner.event}`,
+        subtitle: rerouteBanner.message,
+        meta: `차단 ${droppedLanes.length}건 · 신규 ${addedLanes.length}건 · 추출 ${stamp}`,
+        sections,
+        footer: `Ontology MFG · 글로벌 SCM lane 시뮬 · 합성 데이터 · 생성: ${stamp}`,
+        filename: `lane-reroute-${rerouteBanner.event.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
+      });
+    } catch (e) {
+      console.error("lane PDF export failed:", e);
+      setExportError(`PDF 생성 실패 — ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   function toggleMode(m: string) {
@@ -230,6 +255,12 @@ export default function LanePage() {
         </div>
       )}
 
+      {exportError && (
+        <div role="alert" className="border-b border-red-500/30 bg-red-500/10 px-6 py-2 text-xs text-red-300">
+          {exportError}
+        </div>
+      )}
+
       {/* ═══ KPI strip ═══ */}
       <div className="border-b border-ink-700 bg-ink-900/70 px-6 py-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <Kpi label="Total Lanes" value={kpis.total} />
@@ -244,6 +275,11 @@ export default function LanePage() {
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-0">
         {/* ─── Map ─── */}
         <div className="p-4 min-h-[500px]">
+          {loadError && (
+            <div role="alert" className="mb-4 p-3 rounded-md bg-red-500/10 text-red-300 border border-red-500/30 text-sm">
+              {loadError}
+            </div>
+          )}
           {loading ? (
             <div className="h-full flex items-center justify-center text-ink-500 text-sm">
               Lane 데이터 로딩 중...

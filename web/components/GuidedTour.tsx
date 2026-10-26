@@ -32,7 +32,7 @@ const STEPS: Step[] = [
     icon: Map,
     pitch: 'AMZN Tech Hi-Tech MFG 온톨로지 데모입니다 — Bedrock + AgentCore + Neptune 위에 12개 시나리오(A-L)가 올라갑니다. 5개 페르소나(Buyer·Engineer·Quality·SCM·Plant)가 동일한 그래프를 다른 시점에서 봅니다.',
     try_it: '우상단 페르소나 버튼으로 역할을 선택해두면 모든 시나리오가 해당 페르소나 시점을 반영합니다.',
-    tech: 'Next.js 14 + FastAPI + Bedrock Sonnet 4.6 + AgentCore Memory/Code Interpreter + Neptune + OpenSearch Serverless',
+    tech: 'Next.js 16 + FastAPI + Bedrock Sonnet 4.6 + AgentCore Memory/Code Interpreter + Neptune + OpenSearch Serverless',
   },
   {
     badge: 'A',

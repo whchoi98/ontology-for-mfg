@@ -1,27 +1,36 @@
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "/api";
+import { apiUrl } from "./api-base";
+
+const SESSION_EXPIRED_MSG =
+  "로그인 세션이 만료되었습니다. 페이지를 새로고침하면 자동 재로그인됩니다.";
+
+/** Send the browser to the Cognito login flow. */
+function redirectToLogin(): void {
+  if (typeof window !== "undefined") {
+    window.location.href = apiUrl("/auth/login");
+  }
+}
 
 /** Redirect to Cognito login when the API returns 401. */
 function handleUnauthorized(): never {
-  if (typeof window !== "undefined") {
-    window.location.href = "/api/auth/login";
-  }
+  redirectToLogin();
   throw new Error("authentication required");
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const r = await fetch(`${BASE}${path}`, {
+async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const r = await fetch(apiUrl(path), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
     credentials: "include",
+    signal,
   });
   if (r.status === 401) handleUnauthorized();
   if (!r.ok) throw new Error(`${path} → ${r.status}`);
   return r.json();
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  const r = await fetch(`${BASE}${path}`, { credentials: "include" });
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const r = await fetch(apiUrl(path), { credentials: "include", signal });
   if (r.status === 401) handleUnauthorized();
   if (!r.ok) throw new Error(`${path} → ${r.status}`);
   return r.json();
@@ -68,8 +77,17 @@ export function listPersonas(_n = 5) {
 }
 
 // listObjects — GET /api/objects/<label>?limit=N
-export function listObjects(label: string, limit = 100) {
-  return getJson<{ label: string; items: unknown[] }>(`/objects/${encodeURIComponent(label)}?limit=${limit}`);
+export function listObjects<T = { label: string; items: unknown[] }>(
+  label: string, limit = 100, signal?: AbortSignal,
+) {
+  return getJson<T>(`/objects/${encodeURIComponent(label)}?limit=${limit}`, signal);
+}
+
+// getObject — GET /api/objects/<label>/<id> (properties + 1-hop subgraph)
+export function getObject<T = Record<string, unknown>>(
+  label: string, id: string, signal?: AbortSignal,
+) {
+  return getJson<T>(`/objects/${encodeURIComponent(label)}/${encodeURIComponent(id)}`, signal);
 }
 
 // getOpsTrace — GET /api/ops/trace (fallback on error)
@@ -154,14 +172,21 @@ export const opsTrace = (limit = 50, sessionId?: string) => {
   return getJson<TraceResponse>(`/ops/trace${qp}`);
 };
 
-/** Generic SSE streamer reused by /chat and /eight-d. */
+export type StreamEvent = { type: string; [k: string]: unknown };
+
+/** Generic SSE streamer shared by /chat and /eight-d.
+ *
+ *  Contract: every stream ends with at least one `stop` event, including
+ *  the failure paths — non-2xx → `error` + `stop(error:<status>)`, network
+ *  failure → `stop(fetch_error:…)`, caller cancel → `stop(aborted)` — so
+ *  consumers can always leave their streaming state on `stop`. */
 function sseStream(
   path: string,
   body: unknown,
-  onEvent: (e: { type: string; [k: string]: unknown }) => void,
+  onEvent: (e: StreamEvent) => void,
 ): () => void {
   const ctrl = new AbortController();
-  fetch(`${BASE}${path}`, {
+  fetch(apiUrl(path), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -169,94 +194,14 @@ function sseStream(
     credentials: "include",
   }).then(async (r) => {
     if (!r.ok) {
+      // Surface the failure so the panel doesn't appear silent.
       const detail = await r.text().catch(() => "");
       const why = r.status === 401
-        ? "로그인 세션이 만료되었습니다. 페이지를 새로고침하면 자동 재로그인됩니다."
+        ? SESSION_EXPIRED_MSG
         : `(${r.status}) ${detail.slice(0, 200) || r.statusText}`;
       onEvent({ type: "error", message: why, status: r.status });
       onEvent({ type: "stop", reason: `error:${r.status}` });
-      if (r.status === 401) handleUnauthorized();
-      return;
-    }
-    const reader = r.body!.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
-    const eventSep = /\r?\n\r?\n/;
-    const lineSep = /\r?\n/;
-    const dispatch = (ev: string) => {
-      const dataLine = ev.split(lineSep).find((l) => l.startsWith("data:"));
-      if (!dataLine) return;
-      const payload = dataLine.slice(5).trimStart();
-      if (!payload) return;
-      try { onEvent(JSON.parse(payload)); } catch { /* skip malformed */ }
-    };
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const events = buf.split(eventSep);
-      buf = events.pop() ?? "";
-      for (const ev of events) dispatch(ev);
-    }
-    if (buf.trim()) dispatch(buf);
-    onEvent({ type: "stop", reason: "stream_end" });
-  }).catch((err) => {
-    if (err?.name !== "AbortError") {
-      onEvent({ type: "stop", reason: `fetch_error:${String(err)}` });
-    }
-  });
-  return () => ctrl.abort();
-}
-
-/** Stream the 8D pipeline — emits phase / phase_done / result / stop events. */
-export function eightDStream(
-  incident_id: string,
-  onEvent: (e: { type: string; [k: string]: unknown }) => void,
-): () => void {
-  return sseStream("/eight-d", { incident_id }, onEvent);
-}
-
-/** Promise wrapper around eightDStream — resolves with the final result payload.
- *  Kept for legacy persona-routed pages that expected a JSON response. New code
- *  should use eightDStream directly to render live progress. */
-function eightD(incident_id: string): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    let final: Record<string, unknown> | null = null;
-    let errMsg: string | null = null;
-    eightDStream(incident_id, (ev) => {
-      if (ev.type === "result") {
-        final = ev as Record<string, unknown>;
-      } else if (ev.type === "error") {
-        errMsg = String(ev.message ?? "8D stream error");
-      } else if (ev.type === "stop") {
-        if (final) resolve(final);
-        else reject(new Error(errMsg ?? `8D stream ended without result (${String(ev.reason ?? "?")})`));
-      }
-    });
-  });
-}
-
-export function chatStream(
-  msg: string, session_id: string, persona = "engineer",
-  onEvent: (e: { type: string; [k: string]: unknown }) => void,
-): () => void {
-  const ctrl = new AbortController();
-  fetch(`${BASE}/chat`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ msg, session_id, persona }),
-    signal: ctrl.signal,
-    credentials: "include",
-  }).then(async (r) => {
-    if (!r.ok) {
-      // Surface the failure so the chat panel doesn't appear silent.
-      const detail = await r.text().catch(() => "");
-      const why = r.status === 401
-        ? "로그인 세션이 만료되었습니다. 페이지를 새로고침하면 자동 재로그인됩니다."
-        : `(${r.status}) ${detail.slice(0, 200) || r.statusText}`;
-      onEvent({ type: "delta", text: `\n⚠️ 채팅 요청이 실패했습니다 — ${why}` });
-      onEvent({ type: "stop", reason: `error:${r.status}` });
-      if (r.status === 401) handleUnauthorized();
+      if (r.status === 401) redirectToLogin();
       return;
     }
     const reader = r.body!.getReader();
@@ -286,9 +231,48 @@ export function chatStream(
     // Ensure streaming ends if stream closes without explicit stop event
     onEvent({ type: "stop", reason: "stream_end" });
   }).catch((err) => {
-    if (err?.name !== "AbortError") {
+    if (ctrl.signal.aborted || err?.name === "AbortError") {
+      // Caller cancelled — still terminate the event sequence so any
+      // consumer keyed on `stop` leaves its streaming state.
+      onEvent({ type: "stop", reason: "aborted" });
+    } else {
       onEvent({ type: "stop", reason: `fetch_error:${String(err)}` });
     }
   });
   return () => ctrl.abort();
+}
+
+/** Stream the 8D pipeline — emits phase / phase_done / result / stop events. */
+export function eightDStream(
+  incident_id: string,
+  onEvent: (e: StreamEvent) => void,
+): () => void {
+  return sseStream("/eight-d", { incident_id }, onEvent);
+}
+
+/** Promise wrapper around eightDStream — resolves with the final result payload.
+ *  Kept for legacy persona-routed pages that expected a JSON response. New code
+ *  should use eightDStream directly to render live progress. */
+function eightD(incident_id: string): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    let final: Record<string, unknown> | null = null;
+    let errMsg: string | null = null;
+    eightDStream(incident_id, (ev) => {
+      if (ev.type === "result") {
+        final = ev as Record<string, unknown>;
+      } else if (ev.type === "error") {
+        errMsg = String(ev.message ?? "8D stream error");
+      } else if (ev.type === "stop") {
+        if (final) resolve(final);
+        else reject(new Error(errMsg ?? `8D stream ended without result (${String(ev.reason ?? "?")})`));
+      }
+    });
+  });
+}
+
+export function chatStream(
+  msg: string, session_id: string, persona = "engineer",
+  onEvent: (e: StreamEvent) => void,
+): () => void {
+  return sseStream("/chat", { msg, session_id, persona }, onEvent);
 }

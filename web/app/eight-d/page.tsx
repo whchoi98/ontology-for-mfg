@@ -1,6 +1,7 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { eightDStream } from "@/lib/api-client";
+import { sseErrorText, stopReasonNotice } from "@/lib/sse-events";
 import { exportToPdf, type PdfSection } from "@/lib/pdf-export";
 import { useActivePersona } from "@/lib/persona-context";
 import { MarkdownView } from "@/components/MarkdownView";
@@ -71,6 +72,9 @@ export default function EightDPage() {
   const [exporting, setExporting] = useState(false);
   const cancelRef = useRef<(() => void) | null>(null);
 
+  // Navigating away must not leave the 8D generation stream running.
+  useEffect(() => () => { cancelRef.current?.(); }, []);
+
   function runEightD(id?: string) {
     const target = (id ?? incidentId).trim();
     if (!target || streaming) return;
@@ -114,8 +118,10 @@ export default function EightDPage() {
         setSynthetic(Boolean(ev.synthetic));
         if (typeof ev.total_s === "number") setTotalS(ev.total_s);
       } else if (ev.type === "error") {
-        setError(String(ev.message ?? "알 수 없는 오류"));
+        setError(sseErrorText(ev));
       } else if (ev.type === "stop") {
+        const notice = stopReasonNotice(ev.reason);
+        if (notice) setError((prev) => prev ?? notice);
         setStreaming(false);
       }
     });

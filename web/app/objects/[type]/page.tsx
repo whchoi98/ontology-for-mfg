@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -11,6 +11,7 @@ import {
   PanelRightClose, PanelRightOpen,
 } from "lucide-react";
 import { ScenarioHeader } from "@/components/ScenarioHeader";
+import { getObject, listObjects } from "@/lib/api-client";
 
 const CytoscapeView = dynamic(
   () => import("@/components/CytoscapeView").then((m) => m.CytoscapeView),
@@ -57,55 +58,61 @@ interface DetailResponse {
   neighbor_summary: Record<string, number>;
 }
 
-export default function ObjectTypePage({ params }: { params: { type: string } }) {
-  const meta = TYPE_META[params.type] ?? { ko: params.type, desc: "", color: "#94a3b8", icon: NetworkIcon };
+// Next 15+ passes route params as a Promise; client pages unwrap it with
+// React `use()` (sync access was removed in Next 16).
+export default function ObjectTypePage({ params }: { params: Promise<{ type: string }> }) {
+  const { type } = use(params);
+  const meta = TYPE_META[type] ?? { ko: type, desc: "", color: "#94a3b8", icon: NetworkIcon };
   const Icon = meta.icon;
 
   const [list, setList] = useState<ListResponse | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detailSlug, setDetailSlug] = useState<string>(params.type);
+  const [detailSlug, setDetailSlug] = useState<string>(type);
   const [detail, setDetail] = useState<DetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
 
-  // List load — refresh when slug changes
+  // List load — refresh when slug changes. Cleanup aborts the request and the
+  // `aborted` check drops any response that still lands for the old slug.
   useEffect(() => {
+    const ctrl = new AbortController();
     setList(null);
     setListError(null);
     setSelectedId(null);
     setDetail(null);
-    setDetailSlug(params.type);
-    fetch(`/api/objects/${encodeURIComponent(params.type)}?limit=100`, { credentials: "include" })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`${r.status}`);
-        const d: ListResponse = await r.json();
-        setList(d);
-      })
-      .catch((e) => setListError(String(e)));
-  }, [params.type]);
+    setDetailLoading(false);
+    setDetailSlug(type);
+    listObjects<ListResponse>(type, 100, ctrl.signal)
+      .then((d) => { if (!ctrl.signal.aborted) setList(d); })
+      .catch((e) => {
+        if (!ctrl.signal.aborted) setListError(e instanceof Error ? e.message : String(e));
+      });
+    return () => ctrl.abort();
+  }, [type]);
 
   // Auto-select first item once list arrives
   useEffect(() => {
     if (list && list.items.length && !selectedId) setSelectedId(list.items[0].id);
   }, [list, selectedId]);
 
-  // Detail load — fetch subgraph for current selection
+  // Detail load — fetch subgraph for current selection. A superseded request
+  // (rapid A→B clicks) is aborted and can neither render A's data under B's
+  // highlight nor clear B's loading state early.
   useEffect(() => {
     if (!selectedId || !detailSlug) return;
+    const ctrl = new AbortController();
     setDetailLoading(true);
     setDetailError(null);
-    fetch(`/api/objects/${encodeURIComponent(detailSlug)}/${encodeURIComponent(selectedId)}`,
-      { credentials: "include" })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`${r.status}`);
-        const d: DetailResponse = await r.json();
-        setDetail(d);
+    getObject<DetailResponse>(detailSlug, selectedId, ctrl.signal)
+      .then((d) => { if (!ctrl.signal.aborted) setDetail(d); })
+      .catch((e) => {
+        if (!ctrl.signal.aborted) setDetailError(e instanceof Error ? e.message : String(e));
       })
-      .catch((e) => setDetailError(String(e)))
-      .finally(() => setDetailLoading(false));
+      .finally(() => { if (!ctrl.signal.aborted) setDetailLoading(false); });
+    return () => ctrl.abort();
   }, [selectedId, detailSlug]);
 
   const filteredItems = useMemo(() => {
@@ -128,7 +135,7 @@ export default function ObjectTypePage({ params }: { params: { type: string } })
     <div className="min-h-screen flex flex-col">
       <ScenarioHeader
         title={`객체 탐색 · ${meta.ko}`}
-        tech={`Cypher MATCH(n:${params.type}) → 1-hop neighbors → Cytoscape 그래프 + 속성 인스펙터`}
+        tech={`Cypher MATCH(n:${type}) → 1-hop neighbors → Cytoscape 그래프 + 속성 인스펙터`}
         rightSlot={
           <div className="flex items-center gap-2">
             <Link href="/" className="text-xs text-ink-400 hover:text-accent-300">홈</Link>
@@ -136,7 +143,7 @@ export default function ObjectTypePage({ params }: { params: { type: string } })
             <span className="text-xs text-ink-200">{meta.ko}</span>
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border ml-2"
               style={{ borderColor: `${meta.color}60`, color: meta.color, backgroundColor: `${meta.color}14` }}>
-              :{params.type}
+              :{type}
             </span>
             {list && (
               <span className="text-[10px] font-mono text-ink-400">total {list.total}{list._synthetic ? " (demo)" : ""}</span>
@@ -191,7 +198,7 @@ export default function ObjectTypePage({ params }: { params: { type: string } })
               return (
                 <li key={it.id}>
                   <button
-                    onClick={() => { setDetailSlug(params.type); setSelectedId(it.id); }}
+                    onClick={() => { setDetailSlug(type); setSelectedId(it.id); }}
                     className={[
                       "w-full text-left px-4 py-2.5 border-b border-ink-700/40 transition",
                       active

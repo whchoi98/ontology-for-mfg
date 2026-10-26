@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Database, ShieldCheck, Brain, Activity, ChevronRight, RefreshCcw,
@@ -23,8 +23,10 @@ const META: Record<string, {
   trace:     { ko: "도구 호출 트레이스",  desc: "대화형 에이전트 도구 호출 timeline — 최근 200개 (per-instance ring)", icon: ListTree },
 };
 
-export default function OpsPage({ params }: { params: { area: string } }) {
-  const meta = META[params.area] ?? { ko: params.area, desc: "", icon: Activity };
+// Route params arrive as a Promise (Next 15+); unwrap with React `use()`.
+export default function OpsPage({ params }: { params: Promise<{ area: string }> }) {
+  const { area } = use(params);
+  const meta = META[area] ?? { ko: area, desc: "", icon: Activity };
   const Icon = meta.icon;
   return (
     <div className="min-h-screen flex flex-col">
@@ -47,13 +49,13 @@ export default function OpsPage({ params }: { params: { area: string } }) {
             <p className="text-sm text-ink-400">{meta.desc}</p>
           </div>
         </div>
-        {params.area === "ingest" && <IngestView />}
-        {params.area === "guardrail" && <GuardrailView />}
-        {params.area === "memory" && <MemoryView />}
-        {params.area === "eval" && <EvalView />}
-        {params.area === "trace" && <TraceView />}
-        {!META[params.area] && (
-          <p className="text-sm text-ink-400">Unknown ops area: {params.area}</p>
+        {area === "ingest" && <IngestView />}
+        {area === "guardrail" && <GuardrailView />}
+        {area === "memory" && <MemoryView />}
+        {area === "eval" && <EvalView />}
+        {area === "trace" && <TraceView />}
+        {!META[area] && (
+          <p className="text-sm text-ink-400">Unknown ops area: {area}</p>
         )}
       </div>
     </div>

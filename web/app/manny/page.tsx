@@ -14,10 +14,12 @@
  *  (since there's no global PersonaSwitch in the popup shell).
  */
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Send, RotateCcw, Sparkles } from 'lucide-react';
+import { AlertTriangle, Bot, Send, RotateCcw, Sparkles } from 'lucide-react';
 import { chatStream } from '@/lib/api-client';
 import { MarkdownView } from '@/components/MarkdownView';
 import { useActivePersona } from '@/lib/persona-context';
+import { MANNY_CLOSE_MESSAGE } from '@/lib/manny-bridge';
+import { sseErrorText, stopReasonNotice } from '@/lib/sse-events';
 import type { Persona } from '@/lib/types';
 
 const MFG_BRAND_GRADIENT = 'bg-gradient-to-br from-accent-700 via-accent-600 to-accent-400';
@@ -76,7 +78,20 @@ type ChatMessage = {
   role: 'user' | 'assistant';
   text: string;
   toolLogs?: { tool: string; input: unknown }[];
+  /** Stream failure notice (`error` event / network drop). */
+  error?: string;
 };
+
+function newSessionId(persona: Persona): string {
+  return `mfg_manny_${persona}_${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+}
+
+/** Apply `patch` to the trailing assistant placeholder (no-op otherwise). */
+function patchLastAssistant(m: ChatMessage[], patch: (last: ChatMessage) => ChatMessage): ChatMessage[] {
+  const last = m[m.length - 1];
+  if (last?.role !== 'assistant') return m;
+  return [...m.slice(0, -1), patch(last)];
+}
 
 export default function MannyPopupPage() {
   const { active, setActive } = useActivePersona();
@@ -86,13 +101,39 @@ export default function MannyPopupPage() {
   const [streaming, setStreaming] = useState(false);
   const [followups, setFollowups] = useState<string[]>([]);
   const cancelRef = useRef<(() => void) | null>(null);
+  // Monotonic stream token — callbacks of a cancelled / superseded stream
+  // compare against it and become no-ops (no late deltas or followups).
+  const streamIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  function abortStream() {
+    streamIdRef.current += 1;
+    cancelRef.current?.();
+    cancelRef.current = null;
+  }
+
+  // Persona change → fresh session. Cleanup cancels the in-flight stream on
+  // persona change and on unmount.
   useEffect(() => {
-    setSessionId(`mfg_manny_${active}_${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`);
+    setSessionId(newSessionId(active));
     setMessages([]);
     setFollowups([]);
+    setStreaming(false);
+    return abortStream;
   }, [active]);
+
+  // Inside FloatingChat's iframe modal focus stays in this document, so the
+  // parent never sees ESC — forward it (same-origin only, ADR-010).
+  useEffect(() => {
+    if (window.parent === window) return; // standalone popup window
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        window.parent.postMessage({ type: MANNY_CLOSE_MESSAGE }, window.location.origin);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -100,7 +141,8 @@ export default function MannyPopupPage() {
 
   function send(text: string) {
     const t = text.trim();
-    if (!t || streaming) return;
+    if (!t || cancelRef.current) return;
+    const streamId = ++streamIdRef.current;
     setMessages((m) => [...m, { role: 'user', text: t }, { role: 'assistant', text: '', toolLogs: [] }]);
     setInput('');
     setStreaming(true);
@@ -110,39 +152,43 @@ export default function MannyPopupPage() {
     const toolLogs: { tool: string; input: unknown }[] = [];
 
     cancelRef.current = chatStream(t, sessionId, active, (event) => {
+      if (streamIdRef.current !== streamId) return; // superseded / cancelled
       const ev = event as { type: string; [k: string]: unknown };
       if (ev.type === 'delta' || ev.type === 'token') {
         const chunk = String(ev.text ?? ev.content ?? '');
         assistantText += chunk;
-        setMessages((m) => {
-          const last = m[m.length - 1];
-          if (last?.role !== 'assistant') return m;
-          return [...m.slice(0, -1), { ...last, text: assistantText, toolLogs: [...toolLogs] }];
-        });
+        setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, text: assistantText, toolLogs: [...toolLogs] })));
       } else if (ev.type === 'tool_call') {
         const tool = String(ev.name ?? '');
         if (tool) {
           toolLogs.push({ tool, input: ev.args ?? {} });
-          setMessages((m) => {
-            const last = m[m.length - 1];
-            if (last?.role !== 'assistant') return m;
-            return [...m.slice(0, -1), { ...last, toolLogs: [...toolLogs] }];
-          });
+          setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, toolLogs: [...toolLogs] })));
         }
       } else if (ev.type === 'suggested_followups') {
         const items = Array.isArray(ev.items) ? (ev.items as unknown[]).map(String) : [];
         setFollowups(items.slice(0, 3));
+      } else if (ev.type === 'error') {
+        const msg = sseErrorText(ev);
+        setMessages((m) => patchLastAssistant(m, (last) => ({
+          ...last, error: last.error ? `${last.error}\n${msg}` : msg,
+        })));
       } else if (ev.type === 'stop' || ev.type === 'done') {
+        const notice = stopReasonNotice(ev.reason);
+        if (notice) {
+          setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, error: last.error ?? notice })));
+        }
+        cancelRef.current = null;
         setStreaming(false);
       }
     });
   }
 
   function reset() {
-    cancelRef.current?.();
+    abortStream();
+    setStreaming(false);
     setMessages([]);
     setFollowups([]);
-    setSessionId(`mfg_manny_${active}_${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`);
+    setSessionId(newSessionId(active));
   }
 
   const personas: Persona[] = ['buyer', 'engineer', 'quality', 'scm', 'plant'];
@@ -240,7 +286,13 @@ export default function MannyPopupPage() {
             {m.role === 'user' ? (
               <span className="whitespace-pre-wrap">{m.text}</span>
             ) : (
-              <MarkdownView text={m.text || (streaming ? '…' : '')} />
+              <MarkdownView text={m.text || (streaming && !m.error ? '…' : '')} />
+            )}
+            {m.error && (
+              <div role="alert" className="mt-2 flex items-start gap-1.5 text-xs rounded border border-red-500/30 bg-red-500/10 text-red-300 px-2.5 py-1.5 whitespace-pre-wrap">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>{m.error}</span>
+              </div>
             )}
             {m.toolLogs && m.toolLogs.length > 0 && (
               <div className="mt-2 pt-2 border-t border-ink-700/40 text-[10px] text-ink-500 font-mono">

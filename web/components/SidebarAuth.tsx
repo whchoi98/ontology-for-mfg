@@ -5,19 +5,18 @@
 
 import { useEffect, useState } from 'react';
 import { LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { apiUrl } from '@/lib/api-base';
 
 type Whoami =
   | { authenticated: true; email?: string; sub?: string; username?: string }
   | { authenticated: false };
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? '';
 
 export function SidebarAuth() {
   const [me, setMe] = useState<Whoami | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${API_BASE}/api/auth/whoami`, { credentials: 'include' })
+    fetch(apiUrl('/auth/whoami'), { credentials: 'include' })
       .then(async (r) => {
         const body = await r.json().catch(() => ({ authenticated: false }));
         if (!cancelled) setMe(body as Whoami);
@@ -38,7 +37,7 @@ export function SidebarAuth() {
     return (
       <div className="border-t border-ink-700 p-3">
         <a
-          href={`${API_BASE}/api/auth/login`}
+          href={apiUrl('/auth/login')}
           className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-md bg-accent-500 text-ink-950 text-xs font-semibold hover:bg-accent-400 transition"
         >
           <LogIn className="w-3.5 h-3.5" />
@@ -61,7 +60,7 @@ export function SidebarAuth() {
         </div>
       </div>
       <a
-        href={`${API_BASE}/api/auth/logout`}
+        href={apiUrl('/auth/logout')}
         className="flex items-center justify-center gap-1.5 w-full px-3 py-1.5 rounded-md border border-ink-700 bg-ink-800 text-ink-200 text-xs hover:border-rose-500/40 hover:text-rose-300 transition"
       >
         <LogOut className="w-3.5 h-3.5" />

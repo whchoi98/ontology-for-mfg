@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Download, FileText } from "lucide-react";
+import { AlertTriangle, Download, FileText } from "lucide-react";
 import { chatStream } from "@/lib/api-client";
 import { exportToPdf } from "@/lib/pdf-export";
 import { useActivePersona } from "@/lib/persona-context";
+import { sseErrorText, stopReasonNotice } from "@/lib/sse-events";
 import type { Persona } from "@/lib/types";
 import { MarkdownView } from "@/components/MarkdownView";
 import { ScenarioHeader } from "@/components/ScenarioHeader";
@@ -12,6 +13,8 @@ type ChatMessage = {
   role: "user" | "assistant";
   text: string;
   toolLogs?: { tool: string; input: unknown }[];
+  /** Stream failure notice (`error` event / network drop) shown under the bubble. */
+  error?: string;
 };
 type Phase = { name: string; detail?: string };
 type Sample = { label: string; persona: Persona };
@@ -62,6 +65,17 @@ function phaseToneFor(name: string): { label: string; tone: string } {
   return { label: name, tone: "border-slate-500/40 bg-slate-500/10 text-slate-200" };
 }
 
+function newSessionId(persona: Persona): string {
+  return `mfg_${persona}_${(globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36))}`;
+}
+
+/** Apply `patch` to the trailing assistant placeholder (no-op otherwise). */
+function patchLastAssistant(m: ChatMessage[], patch: (last: ChatMessage) => ChatMessage): ChatMessage[] {
+  const last = m[m.length - 1];
+  if (last?.role !== "assistant") return m;
+  return [...m.slice(0, -1), patch(last)];
+}
+
 export default function ChatPage() {
   const { active, setActive } = useActivePersona();
   const [sessionId, setSessionId] = useState<string>("");
@@ -71,17 +85,41 @@ export default function ChatPage() {
   const [toolLog, setToolLog] = useState<{ tool: string; input: unknown }[]>([]);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [followups, setFollowups] = useState<string[]>([]);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const cancelRef = useRef<(() => void) | null>(null);
+  // Monotonic stream token. Every SSE callback compares against it, so events
+  // from a cancelled / superseded stream (late deltas, followups) are dropped.
+  const streamIdRef = useRef(0);
+  // Sample chip for ANOTHER persona: sent only after the persona effect below
+  // has reset the session, so it runs under the new persona + session id.
+  const queuedRef = useRef<{ text: string; persona: Persona } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  function abortStream() {
+    streamIdRef.current += 1;
+    cancelRef.current?.();
+    cancelRef.current = null;
+  }
 
   // Persona change → new session + clean slate so the user sees an honest
   // restart (sample prompts re-appear, no stale followups carrying over).
+  // Cleanup cancels the in-flight stream on persona change AND on unmount.
   useEffect(() => {
-    setSessionId(`mfg_${active}_${(globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36))}`);
+    const sid = newSessionId(active);
+    setSessionId(sid);
     setMessages([]);
     setToolLog([]);
     setPhases([]);
     setFollowups([]);
+    setStreaming(false);
+    const queued = queuedRef.current;
+    queuedRef.current = null;
+    if (queued && queued.persona === active) startStream(queued.text, active, sid);
+    return abortStream;
+    // startStream only touches refs, state setters and its arguments;
+    // re-running on its identity would reset the session on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   // Auto-scroll to bottom as new tokens arrive
@@ -90,8 +128,22 @@ export default function ChatPage() {
   }, [messages, streaming]);
 
   function sendMessage(text: string) {
+    startStream(text, active, sessionId);
+  }
+
+  function sendSample(p: Sample) {
+    if (p.persona === active) {
+      sendMessage(p.label);
+      return;
+    }
+    queuedRef.current = { text: p.label, persona: p.persona };
+    setActive(p.persona);
+  }
+
+  function startStream(text: string, persona: Persona, sid: string) {
     const trimmed = text.trim();
-    if (!trimmed || streaming) return;
+    if (!trimmed || cancelRef.current) return;
+    const streamId = ++streamIdRef.current;
     const userMsg: ChatMessage = { role: "user", text: trimmed };
     setMessages((m) => [...m, userMsg, { role: "assistant", text: "", toolLogs: [] }]);
     setInput("");
@@ -103,7 +155,8 @@ export default function ChatPage() {
     let assistantText = "";
     const sessionToolLogs: { tool: string; input: unknown }[] = [];
 
-    cancelRef.current = chatStream(trimmed, sessionId, active, (event) => {
+    cancelRef.current = chatStream(trimmed, sid, persona, (event) => {
+      if (streamIdRef.current !== streamId) return; // superseded / cancelled
       const ev = event as { type: string; [k: string]: unknown };
 
       // Map MFG event vocabulary → retail-style phase chips + tool log
@@ -123,11 +176,7 @@ export default function ChatPage() {
         setPhases((p) => [...p, { name: `tool:${tool}` }]);
         sessionToolLogs.push({ tool, input });
         setToolLog((logs) => [...logs, { tool, input }]);
-        setMessages((m) => {
-          const last = m[m.length - 1];
-          if (last?.role !== "assistant") return m;
-          return [...m.slice(0, -1), { ...last, toolLogs: [...sessionToolLogs] }];
-        });
+        setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, toolLogs: [...sessionToolLogs] })));
       } else if (ev.type === "tool_result") {
         // Update last phase chip's detail with concise result hint
         const result = ev.result;
@@ -142,15 +191,21 @@ export default function ChatPage() {
       } else if (ev.type === "delta" || ev.type === "token") {
         const chunk = String(ev.text ?? ev.content ?? "");
         assistantText += chunk;
-        setMessages((m) => {
-          const last = m[m.length - 1];
-          if (last?.role !== "assistant") return m;
-          return [...m.slice(0, -1), { ...last, text: assistantText, toolLogs: [...sessionToolLogs] }];
-        });
+        setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, text: assistantText, toolLogs: [...sessionToolLogs] })));
       } else if (ev.type === "suggested_followups") {
         const items = Array.isArray(ev.items) ? (ev.items as unknown[]).map(String) : [];
         setFollowups(items.slice(0, 3));
+      } else if (ev.type === "error") {
+        const msg = sseErrorText(ev);
+        setMessages((m) => patchLastAssistant(m, (last) => ({
+          ...last, error: last.error ? `${last.error}\n${msg}` : msg,
+        })));
       } else if (ev.type === "stop" || ev.type === "done") {
+        const notice = stopReasonNotice(ev.reason);
+        if (notice) {
+          setMessages((m) => patchLastAssistant(m, (last) => ({ ...last, error: last.error ?? notice })));
+        }
+        cancelRef.current = null;
         setStreaming(false);
       }
     });
@@ -174,7 +229,7 @@ export default function ChatPage() {
     messages.forEach((m, i) => {
       lines.push(`## ${i + 1}. ${m.role === "user" ? "사용자" : "에이전트"}`);
       lines.push("");
-      lines.push(m.text || "_(빈 메시지)_");
+      lines.push(m.text || (m.error ? `> ⚠️ ${m.error}` : "_(빈 메시지)_"));
       lines.push("");
       if (m.role === "assistant" && m.toolLogs && m.toolLogs.length > 0) {
         lines.push(`<details><summary>도구 호출 ${m.toolLogs.length}건</summary>`);
@@ -205,7 +260,8 @@ export default function ChatPage() {
   }
 
   async function downloadPdf() {
-    if (messages.length === 0) return;
+    if (messages.length === 0 || exporting) return;
+    setExportError(null);
     const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
     const sections = messages.map((m, i) => {
       const isUser = m.role === "user";
@@ -217,19 +273,27 @@ export default function ChatPage() {
       return {
         badge: `${i + 1}.`,
         title: isUser ? "사용자" : "에이전트",
-        body: m.text || "(빈 메시지)",
+        body: m.text || m.error || "(빈 메시지)",
         footer: toolFooter,
         accentColor: isUser ? "#3b82f6" : "#10b981",
       };
     });
 
-    await exportToPdf({
-      title: `MFG 대화 기록 — ${sessionId}`,
-      meta: `${PERSONA_LABEL[active]} · 추출 ${stamp} · 메시지 ${messages.length}`,
-      sections,
-      footer: `Ontology MFG · 대화형 에이전트 로그 · 합성 데이터 · 생성: ${stamp}`,
-      filename: `mfg-chat-${sessionId.replace(/^mfg_/, "")}-${Date.now()}`,
-    });
+    setExporting(true);
+    try {
+      await exportToPdf({
+        title: `MFG 대화 기록 — ${sessionId}`,
+        meta: `${PERSONA_LABEL[active]} · 추출 ${stamp} · 메시지 ${messages.length}`,
+        sections,
+        footer: `Ontology MFG · 대화형 에이전트 로그 · 합성 데이터 · 생성: ${stamp}`,
+        filename: `mfg-chat-${sessionId.replace(/^mfg_/, "")}-${Date.now()}`,
+      });
+    } catch (e) {
+      console.error("chat PDF export failed:", e);
+      setExportError(`PDF 생성 실패 — ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -263,7 +327,8 @@ export default function ChatPage() {
                 <button
                   type="button"
                   onClick={downloadPdf}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-ink-700 text-ink-300 hover:border-accent-500 hover:text-accent-300 transition"
+                  disabled={exporting}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-ink-700 text-ink-300 hover:border-accent-500 hover:text-accent-300 transition disabled:opacity-50"
                   title="대화 기록을 .pdf 파일로 다운로드"
                 >
                   <Download className="w-3.5 h-3.5" /> PDF
@@ -271,6 +336,12 @@ export default function ChatPage() {
               </div>
             )}
           </div>
+
+          {exportError && (
+            <div role="alert" className="mb-3 p-2.5 rounded-md bg-red-500/10 text-red-300 border border-red-500/30 text-xs">
+              {exportError}
+            </div>
+          )}
 
           {/* Input form — pinned to top so layout matches search/insights pages */}
           <form
@@ -335,7 +406,7 @@ export default function ChatPage() {
                     key={i}
                     type="button"
                     disabled={streaming}
-                    onClick={() => { setActive(p.persona); sendMessage(p.label); }}
+                    onClick={() => sendSample(p)}
                     className="group flex items-start gap-2 text-left px-3 py-2.5 rounded-lg border border-ink-700 bg-ink-900 hover:border-accent-500/60 hover:bg-ink-800 transition disabled:opacity-50"
                   >
                     <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 mt-0.5 ${PERSONA_TONE[p.persona]}`}>
@@ -366,7 +437,13 @@ export default function ChatPage() {
                 </div>
                 {m.role === "user"
                   ? <p className="text-sm whitespace-pre-wrap leading-relaxed text-ink-100">{m.text}</p>
-                  : <MarkdownView text={m.text || (streaming ? "…" : "")} />}
+                  : <MarkdownView text={m.text || (streaming && !m.error ? "…" : "")} />}
+                {m.error && (
+                  <div role="alert" className="mt-2 flex items-start gap-1.5 text-xs rounded border border-red-500/30 bg-red-500/10 text-red-300 px-2.5 py-1.5 whitespace-pre-wrap">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>{m.error}</span>
+                  </div>
+                )}
               </div>
             ))}
 

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { exportToPdf } from "@/lib/pdf-export";
 import { KpiStrip } from "@/components/KpiStrip";
@@ -56,11 +56,24 @@ export default function InsightsPage() {
   const [phases, setPhases] = useState<PhaseChip[]>([]);
   const [loading, setLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  // In-flight guard + request token: overlapping submits are ignored and a
+  // response that is no longer current (e.g. after unmount) is dropped.
+  const inFlightRef = useRef(false);
+  const reqIdRef = useRef(0);
 
-  async function submit(q?: string) {
+  useEffect(() => () => { reqIdRef.current += 1; }, []);
+
+  // `persona` is explicit so a sample chip queries under ITS persona —
+  // `active` in this closure is still the previous render's value.
+  async function submit(q?: string, persona: Persona = active) {
     const text = q ?? question;
-    if (!text.trim()) return;
+    if (!text.trim() || inFlightRef.current) return;
+    inFlightRef.current = true;
+    const reqId = ++reqIdRef.current;
+    const current = () => reqIdRef.current === reqId;
     setLoading(true);
+    setError(null);
     setSummary("");
     setKpis([]);
     setChart([]);
@@ -68,26 +81,39 @@ export default function InsightsPage() {
     setPhases([]);
     setStreamingText("");
 
-    // Simulate pipeline phases
-    const neptuneMeta = PHASE_META.neptune;
-    setPhases([{ name: "neptune", ...neptuneMeta }]);
-    await sleep(300);
-    const bedrockMeta = PHASE_META.bedrock;
-    setPhases((p) => [...p, { name: "bedrock", ...bedrockMeta }]);
+    try {
+      // Simulate pipeline phases
+      const neptuneMeta = PHASE_META.neptune;
+      setPhases([{ name: "neptune", ...neptuneMeta }]);
+      await sleep(300);
+      if (!current()) return;
+      const bedrockMeta = PHASE_META.bedrock;
+      setPhases((p) => [...p, { name: "bedrock", ...bedrockMeta }]);
 
-    const r = (await api.insights(text, active)) as {
-      summary?: string;
-      rows?: KpiRow[];
-      chart_spec?: { title?: string; data?: ChartItem[] };
-    };
+      const r = (await api.insights(text, persona)) as {
+        summary?: string;
+        rows?: KpiRow[];
+        chart_spec?: { title?: string; data?: ChartItem[] };
+      };
+      if (!current()) return;
 
-    setSummary(r.summary ?? "");
-    setKpis(r.rows ?? []);
-    if (r.chart_spec?.data?.length) {
-      setChart(r.chart_spec.data);
-      setChartTitle(r.chart_spec.title ?? "");
+      setSummary(r.summary ?? "");
+      setKpis(r.rows ?? []);
+      if (r.chart_spec?.data?.length) {
+        setChart(r.chart_spec.data);
+        setChartTitle(r.chart_spec.title ?? "");
+      }
+    } catch (e) {
+      if (current()) {
+        setPhases([]);
+        setError(`인사이트 조회 실패 — ${e instanceof Error ? e.message : String(e)}`);
+      }
+    } finally {
+      if (current()) {
+        inFlightRef.current = false;
+        setLoading(false);
+      }
     }
-    setLoading(false);
   }
 
   const maxValue = chart.length > 0 ? Math.max(...chart.map((d) => d.value), 1) : 1;
@@ -96,6 +122,7 @@ export default function InsightsPage() {
 
   async function downloadPdf() {
     if (!hasResults) return;
+    setError(null);
     const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
     const sections = [];
     if (question) {
@@ -124,14 +151,19 @@ export default function InsightsPage() {
         body: summary, accentColor: "#a855f7",
       });
     }
-    await exportToPdf({
-      title: "인사이트 리포트",
-      subtitle: question.slice(0, 80),
-      meta: `${PERSONA_LABEL[active]} · 추출 ${stamp}`,
-      sections,
-      footer: `Ontology MFG · 인사이트 시나리오 · 합성 데이터 · 생성: ${stamp}`,
-      filename: `insights-${Date.now()}`,
-    });
+    try {
+      await exportToPdf({
+        title: "인사이트 리포트",
+        subtitle: question.slice(0, 80),
+        meta: `${PERSONA_LABEL[active]} · 추출 ${stamp}`,
+        sections,
+        footer: `Ontology MFG · 인사이트 시나리오 · 합성 데이터 · 생성: ${stamp}`,
+        filename: `insights-${Date.now()}`,
+      });
+    } catch (e) {
+      console.error("insights PDF export failed:", e);
+      setError(`PDF 생성 실패 — ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   return (
@@ -164,7 +196,7 @@ export default function InsightsPage() {
                   key={i}
                   type="button"
                   disabled={loading}
-                  onClick={() => { setActive(p.persona); setQuestion(p.label); submit(p.label); }}
+                  onClick={() => { setActive(p.persona); setQuestion(p.label); submit(p.label, p.persona); }}
                   className="group flex items-start gap-2 text-left px-3 py-2.5 rounded-lg border border-ink-700 bg-ink-900 hover:border-accent-500/60 hover:bg-ink-800 transition disabled:opacity-50"
                 >
                   <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 mt-0.5 ${PERSONA_TONE[p.persona]}`}>
@@ -194,6 +226,10 @@ export default function InsightsPage() {
             {loading ? "조회 중..." : "조회"}
           </button>
         </div>
+
+        {error && (
+          <div role="alert" className="mb-4 p-3 rounded-md bg-red-500/10 text-red-300 border border-red-500/30 text-sm">{error}</div>
+        )}
 
         {/* Pipeline phase strip */}
         {(loading || phases.length > 0) && !isDone && (

@@ -15,10 +15,22 @@ export default function RfmPage() {
   const [tier, setTier] = useState(1);
   const [rows, setRows] = useState<RfmRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    setError(null);
+    try {
+      await load();
+    } catch (err) {
+      setError(`RFM 분석 실패 — ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function load() {
     // API returns { tier, ranked: [...] } — ranked rows use composite/recency/frequency/monetary
     const r = (await api.rfm(tier)) as { rows?: RfmRow[]; ranked?: RfmRow[] };
     const raw = r.ranked ?? r.rows ?? [];
@@ -36,7 +48,6 @@ export default function RfmPage() {
       } as RfmRow;
     });
     setRows(mapped);
-    setLoading(false);
   }
 
   const topRow = rows[0];
@@ -71,6 +82,7 @@ export default function RfmPage() {
             {loading ? "분석 중..." : "분석"}
           </button>
         </form>
+        {error && <div role="alert" className="mb-4 p-3 rounded-md bg-red-500/10 text-red-300 border border-red-500/30 text-sm">{error}</div>}
         {kpis.length > 0 && <div className="mb-6"><KpiStrip kpis={kpis} /></div>}
         {rows.length > 0 && (
           <div className="overflow-x-auto rounded-lg border border-ink-700 bg-ink-900">

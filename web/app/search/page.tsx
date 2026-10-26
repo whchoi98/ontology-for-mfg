@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Search as SearchIcon } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { CytoscapeView } from "@/components/CytoscapeView";
@@ -54,27 +54,55 @@ export default function SearchPage() {
   const [graph, setGraph] = useState<CytoscapeGraph>({ nodes: [], edges: [] });
   const [loading, setLoading] = useState(false);
   const [phases, setPhases] = useState<PhaseChip[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  // In-flight guard + request token: overlapping submits are ignored and a
+  // response that is no longer current (e.g. after unmount) is dropped.
+  const inFlightRef = useRef(false);
+  const reqIdRef = useRef(0);
 
-  async function doSearch(query: string) {
-    if (!query.trim()) return;
+  useEffect(() => () => { reqIdRef.current += 1; }, []);
+
+  // `persona` is explicit so a sample chip searches under ITS persona —
+  // `active` in this closure is still the previous render's value.
+  async function doSearch(query: string, persona: Persona = active) {
+    if (!query.trim() || inFlightRef.current) return;
+    inFlightRef.current = true;
+    const reqId = ++reqIdRef.current;
+    const current = () => reqIdRef.current === reqId;
     setLoading(true);
+    setError(null);
     setHits([]);
     setPhases([]);
 
-    // Simulate pipeline phase chips while awaiting real API
-    setPhases([{ name: "bm25", label: "BM25 (Nori 한글)", tone: PHASE_TONES.bm25 }]);
-    await sleep(150);
-    setPhases((p) => [...p, { name: "knn", label: "Cohere embed-v3 KNN", tone: PHASE_TONES.knn }]);
-    await sleep(150);
-    setPhases((p) => [...p, { name: "rrf", label: "RRF fusion", tone: PHASE_TONES.rrf }]);
-    await sleep(150);
-    setPhases((p) => [...p, { name: "rerank", label: "Bedrock Reranker", tone: PHASE_TONES.rerank }]);
+    try {
+      // Simulate pipeline phase chips while awaiting real API
+      setPhases([{ name: "bm25", label: "BM25 (Nori 한글)", tone: PHASE_TONES.bm25 }]);
+      await sleep(150);
+      if (!current()) return;
+      setPhases((p) => [...p, { name: "knn", label: "Cohere embed-v3 KNN", tone: PHASE_TONES.knn }]);
+      await sleep(150);
+      if (!current()) return;
+      setPhases((p) => [...p, { name: "rrf", label: "RRF fusion", tone: PHASE_TONES.rrf }]);
+      await sleep(150);
+      if (!current()) return;
+      setPhases((p) => [...p, { name: "rerank", label: "Bedrock Reranker", tone: PHASE_TONES.rerank }]);
 
-    const r = await api.search(query, active);
-    setHits(r.hits as Record<string, unknown>[]);
-    setPhases((p) => [...p, { name: "neptune", label: "Neptune subgraph", tone: PHASE_TONES.neptune }]);
-    setGraph(r.subgraph as CytoscapeGraph);
-    setLoading(false);
+      const r = await api.search(query, persona);
+      if (!current()) return;
+      setHits((r.hits ?? []) as Record<string, unknown>[]);
+      setPhases((p) => [...p, { name: "neptune", label: "Neptune subgraph", tone: PHASE_TONES.neptune }]);
+      setGraph((r.subgraph ?? { nodes: [], edges: [] }) as CytoscapeGraph);
+    } catch (e) {
+      if (current()) {
+        setPhases([]);
+        setError(`검색 실패 — ${e instanceof Error ? e.message : String(e)}`);
+      }
+    } finally {
+      if (current()) {
+        inFlightRef.current = false;
+        setLoading(false);
+      }
+    }
   }
 
   return (
@@ -97,7 +125,7 @@ export default function SearchPage() {
                     key={i}
                     type="button"
                     disabled={loading}
-                    onClick={() => { setActive(p.persona); setQ(p.label); doSearch(p.label); }}
+                    onClick={() => { setActive(p.persona); setQ(p.label); doSearch(p.label, p.persona); }}
                     className="group flex items-start gap-2 text-left px-3 py-2.5 rounded-lg border border-ink-700 bg-ink-900 hover:border-accent-500/60 hover:bg-ink-800 transition disabled:opacity-50"
                   >
                     <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 mt-0.5 ${PERSONA_TONE[p.persona]}`}>
@@ -134,6 +162,10 @@ export default function SearchPage() {
               </button>
             </div>
           </form>
+
+          {error && (
+            <div role="alert" className="mb-4 p-3 rounded-md bg-red-500/10 text-red-300 border border-red-500/30 text-sm">{error}</div>
+          )}
 
           {/* Pipeline phase chips — visible while loading or just after */}
           {(loading || phases.length > 0) && hits.length === 0 && (

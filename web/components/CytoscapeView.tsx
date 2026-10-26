@@ -8,13 +8,21 @@ import type { CytoscapeGraph } from "@/lib/types";
 interface Props {
   graph: CytoscapeGraph;
   /** Node IDs to highlight as the user-selected/anchor node (orange ring + size boost). */
-  anchorIds?: string[];
+  anchorIds?: readonly string[];
   onNodeTap?: (nodeId: string, nodeLabel: string) => void;
   height?: number | string;
 }
 
-export function CytoscapeView({ graph, anchorIds = [], onNodeTap, height = 480 }: Props) {
+// Module-level default — a `= []` default would be a new array every render.
+const NO_ANCHORS: readonly string[] = [];
+
+export function CytoscapeView({ graph, anchorIds = NO_ANCHORS, onNodeTap, height = 480 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const cyRef = useRef<cytoscape.Core | null>(null);
+  // Content-based dep: call sites pass inline `anchorIds={[id]}` arrays whose
+  // identity changes on every render. Keying on the joined ids keeps the
+  // cytoscape instance (zoom / pan / drag state) alive across re-renders.
+  const anchorKey = anchorIds.join("\u0000");
   const [selected, setSelected] = useState<{ id: string; data: Record<string, unknown> } | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
 
@@ -162,12 +170,7 @@ export function CytoscapeView({ graph, anchorIds = [], onNodeTap, height = 480 }
       cy.center();
     });
 
-    if (anchorIds.length > 0) {
-      anchorIds.forEach((nid) => {
-        const n = cy.getElementById(nid);
-        if (n.length) n.addClass("anchor");
-      });
-    }
+    cyRef.current = cy;
 
     cy.on("tap", "node", (evt) => {
       const node = evt.target as NodeSingular;
@@ -181,11 +184,27 @@ export function CytoscapeView({ graph, anchorIds = [], onNodeTap, height = 480 }
       if (evt.target === cy) setSelected(null);
     });
 
-    return () => cy.destroy();
-    // `onNodeTap` intentionally omitted — accessed via onNodeTapRef so the
-    // cytoscape instance isn't torn down on every parent re-render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph, anchorIds]);
+    return () => {
+      cyRef.current = null;
+      cy.destroy();
+    };
+    // Rebuild only when the graph data changes. `onNodeTap` is read via
+    // onNodeTapRef and anchors are applied by the effect below, so neither
+    // tears the instance down on parent re-renders.
+  }, [graph]);
+
+  // Anchor highlighting — re-applied on anchor change without rebuilding the
+  // graph, and after every rebuild (this effect runs after the one above).
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.nodes().removeClass("anchor");
+    if (!anchorKey) return;
+    for (const nid of anchorKey.split("\u0000")) {
+      const n = cy.getElementById(nid);
+      if (n.length) n.addClass("anchor");
+    }
+  }, [graph, anchorKey]);
 
   return (
     <div className="relative w-full h-full">

@@ -16,13 +16,16 @@ const CytoscapeView = dynamic(
 
 interface SampleComponent { id: string; name: string; category: string; leadtime_days?: number; unit_price_usd?: number }
 
+// Real SUPPLIED_BY rows only carry price / lead time / OTD / MOQ (each may be
+// null); stock, defect ppm and price delta exist only on synthetic offers.
+type Num = number | null | undefined;
 interface Offer {
-  supplier_id: string; supplier_name: string; region: string;
-  leadtime_days: number; otd: number;
-  unit_price_usd: number; price_delta_pct: number;
-  moq: number; stock_units: number; stock_status: string;
-  defect_ppm: number; tier: number;
-  composite_score: number;
+  supplier_id: string; supplier_name: string; region?: string | null;
+  leadtime_days?: Num; otd?: Num;
+  unit_price_usd?: Num; price_delta_pct?: Num;
+  moq?: Num; stock_units?: Num; stock_status?: string | null;
+  defect_ppm?: Num; tier?: Num;
+  composite_score?: Num;
 }
 
 interface PriceResponse {
@@ -34,6 +37,8 @@ interface PriceResponse {
               edges: Array<{ data: { id: string; source: string; target: string; type?: string } }> };
   summary: { supplier_count: number; min_leadtime_days: number; max_leadtime_days: number;
               min_unit_price_usd: number; max_unit_price_usd: number; avg_otd: number;
+              // false → the min/max/avg above are 0 placeholders, not data
+              price_available?: boolean; leadtime_available?: boolean;
               best_supplier_id: string | null; best_supplier_name: string | null };
   _summary?: string;
 }
@@ -53,6 +58,19 @@ const PERSONA_TONE: Record<Persona, string> = {
   plant:    "border-violet-500/40  bg-violet-500/10  text-violet-200",
 };
 const PERSONA_LABEL: Record<Persona, string> = { buyer:"Buyer 구매", engineer:"Engineer R&D", quality:"Quality 품질", scm:"SCM 공급망", plant:"Plant 생산" };
+
+const DASH = "—";
+const NO_DATA = "정보 없음";
+
+/** Finite number or null — guards missing / null / non-numeric fields. */
+function num(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+const fmtInt = (v: unknown) => { const n = num(v); return n === null ? DASH : n.toLocaleString(); };
+const fmtUsd = (v: unknown) => { const n = num(v); return n === null ? DASH : `$${n.toFixed(2)}`; };
+const fmtPct = (v: unknown) => { const n = num(v); return n === null ? DASH : `${(n * 100).toFixed(1)}%`; };
+/** Older responses lack `*_available`; fall back to scanning the offers. */
+const hasAny = (offers: Offer[], key: keyof Offer) => offers.some((o) => num(o[key]) !== null);
 
 const STOCK_TONE: Record<string, string> = {
   "충분":     "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
@@ -138,7 +156,7 @@ export default function PricePage() {
                     <div className={`text-sm font-medium truncate ${active ? "text-sky-200" : "text-ink-100"}`}>{p.name}</div>
                     <div className="flex items-center gap-2 mt-0.5 text-[10px] text-ink-400 font-mono">
                       <span>{p.id}</span><span>·</span><span>{p.category}</span>
-                      {p.unit_price_usd != null && <><span>·</span><span>${p.unit_price_usd.toFixed(2)}</span></>}
+                      {num(p.unit_price_usd) !== null && <><span>·</span><span>{fmtUsd(p.unit_price_usd)}</span></>}
                     </div>
                   </button>
                 </li>
@@ -167,7 +185,7 @@ export default function PricePage() {
                     <div className="flex flex-wrap gap-2 text-[10px] font-mono text-ink-300 mt-2">
                       <span>{result.original.id}</span>
                       <span><Layers className="inline w-3 h-3 mr-1" />{result.original.category}</span>
-                      <span>월 수요 {result.original.monthly_demand_units.toLocaleString()}개</span>
+                      <span>월 수요 {fmtInt(result.original.monthly_demand_units)}개</span>
                       {result.original.current_supplier && (
                         <span><Tag className="inline w-3 h-3 mr-1" />현재: {result.original.current_supplier}</span>
                       )}
@@ -182,12 +200,7 @@ export default function PricePage() {
                 </div>
               </article>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <Stat label="협력사 수"   value={`${result.summary.supplier_count}`} />
-                <Stat label="단가 범위 (USD)" value={`$${result.summary.min_unit_price_usd.toFixed(2)} – $${result.summary.max_unit_price_usd.toFixed(2)}`} />
-                <Stat label="리드타임 범위" value={`${result.summary.min_leadtime_days} – ${result.summary.max_leadtime_days}일`} />
-                <Stat label="평균 OTD" value={`${(result.summary.avg_otd * 100).toFixed(1)}%`} tone="good" />
-              </div>
+              <SummaryStats summary={result.summary} offers={result.offers} />
 
               <article>
                 <h3 className="text-sm font-semibold text-ink-100 mb-2 flex items-center gap-1.5">
@@ -205,6 +218,11 @@ export default function PricePage() {
                     <tbody className="bg-ink-900">
                       {result.offers.map((o, i) => {
                         const isBest = o.supplier_id === result.summary.best_supplier_id;
+                        const delta = num(o.price_delta_pct);
+                        const otd = num(o.otd);
+                        const ppm = num(o.defect_ppm);
+                        const score = num(o.composite_score);
+                        const lead = num(o.leadtime_days);
                         return (
                           <tr key={i} className={`border-b border-ink-800 transition ${isBest ? "bg-emerald-500/10 hover:bg-emerald-500/15" : "hover:bg-ink-800/60"}`}>
                             <td className="px-3 py-2.5 text-ink-100 whitespace-nowrap">
@@ -215,33 +233,35 @@ export default function PricePage() {
                               <div className="text-[10px] font-mono text-ink-500">{o.supplier_id}</div>
                             </td>
                             <td className="px-3 py-2.5 text-ink-300 font-mono whitespace-nowrap">
-                              <MapPin className="inline w-3 h-3 mr-1 text-ink-500" />{o.region}
+                              <MapPin className="inline w-3 h-3 mr-1 text-ink-500" />{o.region || DASH}
                             </td>
-                            <td className="px-3 py-2.5 text-ink-100 font-mono whitespace-nowrap">${o.unit_price_usd.toFixed(2)}</td>
-                            <td className={`px-3 py-2.5 font-mono whitespace-nowrap ${o.price_delta_pct < 0 ? "text-emerald-300" : o.price_delta_pct > 0 ? "text-amber-300" : "text-ink-400"}`}>
-                              {o.price_delta_pct > 0 ? "+" : ""}{o.price_delta_pct}%
+                            <td className="px-3 py-2.5 text-ink-100 font-mono whitespace-nowrap">{fmtUsd(o.unit_price_usd)}</td>
+                            <td className={`px-3 py-2.5 font-mono whitespace-nowrap ${delta === null || delta === 0 ? "text-ink-400" : delta < 0 ? "text-emerald-300" : "text-amber-300"}`}>
+                              {delta === null ? DASH : `${delta > 0 ? "+" : ""}${delta}%`}
                             </td>
-                            <td className="px-3 py-2.5 text-ink-300 font-mono whitespace-nowrap">{o.moq.toLocaleString()}</td>
+                            <td className="px-3 py-2.5 text-ink-300 font-mono whitespace-nowrap">{fmtInt(o.moq)}</td>
                             <td className="px-3 py-2.5 whitespace-nowrap">
-                              <div className="text-ink-200 font-mono text-xs">{o.stock_units.toLocaleString()}</div>
-                              <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${STOCK_TONE[o.stock_status] ?? "bg-ink-700 text-ink-300 border-ink-600"}`}>
-                                {o.stock_status}
+                              <div className="text-ink-200 font-mono text-xs">{fmtInt(o.stock_units)}</div>
+                              {o.stock_status && (
+                                <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${STOCK_TONE[o.stock_status] ?? "bg-ink-700 text-ink-300 border-ink-600"}`}>
+                                  {o.stock_status}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-ink-100 font-mono whitespace-nowrap"><Truck className="inline w-3 h-3 mr-1 text-ink-500" />{lead === null ? DASH : `${lead}일`}</td>
+                            <td className="px-3 py-2.5 font-mono whitespace-nowrap">
+                              <span className={otd === null ? "text-ink-400" : otd >= 0.95 ? "text-emerald-300" : otd >= 0.90 ? "text-amber-300" : "text-rose-300"}>
+                                {fmtPct(otd)}
                               </span>
                             </td>
-                            <td className="px-3 py-2.5 text-ink-100 font-mono whitespace-nowrap"><Truck className="inline w-3 h-3 mr-1 text-ink-500" />{o.leadtime_days}일</td>
                             <td className="px-3 py-2.5 font-mono whitespace-nowrap">
-                              <span className={o.otd >= 0.95 ? "text-emerald-300" : o.otd >= 0.90 ? "text-amber-300" : "text-rose-300"}>
-                                {(o.otd * 100).toFixed(1)}%
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 font-mono whitespace-nowrap">
-                              <span className={o.defect_ppm <= 100 ? "text-emerald-300" : o.defect_ppm <= 300 ? "text-amber-300" : "text-rose-300"}>
-                                {o.defect_ppm}
+                              <span className={ppm === null ? "text-ink-400" : ppm <= 100 ? "text-emerald-300" : ppm <= 300 ? "text-amber-300" : "text-rose-300"}>
+                                {ppm === null ? DASH : ppm}
                               </span>
                             </td>
                             <td className="px-3 py-2.5 font-mono font-bold whitespace-nowrap">
-                              <span className={o.composite_score >= 70 ? "text-emerald-300" : o.composite_score >= 50 ? "text-amber-300" : "text-rose-300"}>
-                                {o.composite_score}
+                              <span className={score === null ? "text-ink-400" : score >= 70 ? "text-emerald-300" : score >= 50 ? "text-amber-300" : "text-rose-300"}>
+                                {score === null ? DASH : score}
                               </span>
                             </td>
                           </tr>
@@ -267,6 +287,20 @@ export default function PricePage() {
           )}
         </aside>
       </div>
+    </div>
+  );
+}
+
+function SummaryStats({ summary: s, offers }: { summary: PriceResponse["summary"]; offers: Offer[] }) {
+  const priceOk = s.price_available ?? hasAny(offers, "unit_price_usd");
+  const leadOk = s.leadtime_available ?? hasAny(offers, "leadtime_days");
+  const otdOk = hasAny(offers, "otd");  // avg_otd is 0 when no offer carries OTD
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <Stat label="협력사 수" value={`${s.supplier_count ?? offers.length}`} />
+      <Stat label="단가 범위 (USD)" value={priceOk ? `${fmtUsd(s.min_unit_price_usd)} – ${fmtUsd(s.max_unit_price_usd)}` : NO_DATA} />
+      <Stat label="리드타임 범위" value={leadOk ? `${fmtInt(s.min_leadtime_days)} – ${fmtInt(s.max_leadtime_days)}일` : NO_DATA} />
+      <Stat label="평균 OTD" value={otdOk ? fmtPct(s.avg_otd) : NO_DATA} tone={otdOk ? "good" : undefined} />
     </div>
   );
 }

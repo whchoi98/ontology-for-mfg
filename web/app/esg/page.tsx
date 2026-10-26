@@ -12,13 +12,20 @@ export default function EsgPage() {
   const [plantId, setPlantId] = useState("");
   const [result, setResult] = useState<EsgResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const r = (await api.esg(plantId || undefined)) as EsgResult;
-    setResult(r);
-    setLoading(false);
+    setError(null);
+    try {
+      const r = (await api.esg(plantId || undefined)) as EsgResult;
+      setResult(r);
+    } catch (err) {
+      setError(`ESG 조회 실패 — ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const kpis = result ? [
@@ -53,6 +60,7 @@ export default function EsgPage() {
             {loading ? "조회 중..." : "조회"}
           </button>
         </form>
+        {error && <div role="alert" className="mb-4 p-3 rounded-md bg-red-500/10 text-red-300 border border-red-500/30 text-sm">{error}</div>}
         {kpis.length > 0 && <KpiStrip kpis={kpis} />}
       </div>
     </div>

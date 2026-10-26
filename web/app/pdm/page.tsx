@@ -14,14 +14,21 @@ export default function PdmPage() {
   const [sensors, setSensors] = useState<SensorRow[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const r = (await api.pdm(plantId)) as { sensors?: SensorRow[]; alerts?: Alert[] };
-    setSensors(r.sensors ?? []);
-    setAlerts(r.alerts ?? []);
-    setLoading(false);
+    setError(null);
+    try {
+      const r = (await api.pdm(plantId)) as { sensors?: SensorRow[]; alerts?: Alert[] };
+      setSensors(r.sensors ?? []);
+      setAlerts(r.alerts ?? []);
+    } catch (err) {
+      setError(`PdM 조회 실패 — ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -48,6 +55,8 @@ export default function PdmPage() {
             {loading ? "조회 중..." : "조회"}
           </button>
         </form>
+
+        {error && <div role="alert" className="mb-4 p-3 rounded-md bg-red-500/10 text-red-300 border border-red-500/30 text-sm">{error}</div>}
 
         {alerts.length > 0 && (
           <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl px-5 py-4">

@@ -41,14 +41,21 @@ export default function SpecPage() {
   const [candidates, setCandidates] = useState<SpecCandidate[]>([]);
   const [graph, setGraph] = useState<CytoscapeGraph>({ nodes: [], edges: [] });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function submitSpec(req?: string) {
     const text = req ?? requirements;
     setLoading(true);
-    const r = (await api.specMatch(text)) as { candidates?: SpecCandidate[]; subgraph?: CytoscapeGraph };
-    setCandidates(r.candidates ?? []);
-    setGraph(r.subgraph ?? { nodes: [], edges: [] });
-    setLoading(false);
+    setError(null);
+    try {
+      const r = (await api.specMatch(text)) as { candidates?: SpecCandidate[]; subgraph?: CytoscapeGraph };
+      setCandidates(r.candidates ?? []);
+      setGraph(r.subgraph ?? { nodes: [], edges: [] });
+    } catch (e) {
+      setError(`스펙 매칭 실패 — ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -58,6 +65,7 @@ export default function SpecPage() {
 
   async function downloadPdf() {
     if (candidates.length === 0) return;
+    setError(null);
     const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
     const sections = [
       {
@@ -74,14 +82,19 @@ export default function SpecPage() {
         accentColor: "#10b981",
       })),
     ];
-    await exportToPdf({
-      title: "스펙 매칭 결과",
-      subtitle: requirements.slice(0, 80) || undefined,
-      meta: `${PERSONA_LABEL[active]} · 후보 ${candidates.length}건 · 추출 ${stamp}`,
-      sections,
-      footer: `Ontology MFG · 스펙 매치 시나리오 · 합성 데이터 · 생성: ${stamp}`,
-      filename: `spec-match-${Date.now()}`,
-    });
+    try {
+      await exportToPdf({
+        title: "스펙 매칭 결과",
+        subtitle: requirements.slice(0, 80) || undefined,
+        meta: `${PERSONA_LABEL[active]} · 후보 ${candidates.length}건 · 추출 ${stamp}`,
+        sections,
+        footer: `Ontology MFG · 스펙 매치 시나리오 · 합성 데이터 · 생성: ${stamp}`,
+        filename: `spec-match-${Date.now()}`,
+      });
+    } catch (e) {
+      console.error("spec PDF export failed:", e);
+      setError(`PDF 생성 실패 — ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   return (
@@ -145,6 +158,9 @@ export default function SpecPage() {
               {loading ? "매칭 중..." : "매칭"}
             </button>
           </form>
+          {error && (
+            <div role="alert" className="mb-4 p-3 rounded-md bg-red-500/10 text-red-300 border border-red-500/30 text-sm">{error}</div>
+          )}
           <ul className="space-y-2">
             {candidates.map((c, i) => (
               <li key={i} className="bg-ink-800 border border-ink-700 rounded-lg p-3">

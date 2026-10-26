@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle, XCircle, AlertCircle, RefreshCw } from "lucide-react";
 import { api, opsIngest, type IngestStatus } from "@/lib/api-client";
+import { apiUrl } from "@/lib/api-base";
 import { ScenarioHeader } from "@/components/ScenarioHeader";
 
 interface ValidationCheck {
@@ -88,7 +89,7 @@ export default function ValidationPage() {
 
     // ── API endpoint checks ──────────────────────────────────────────────
     try {
-      const r = await fetch("/api/healthz");
+      const r = await fetch(apiUrl("/healthz"), { credentials: "include" });
       results.push({
         label: "/api/healthz", expected: "200 OK",
         actual: `${r.status}`, status: r.ok ? "pass" : "fail",
