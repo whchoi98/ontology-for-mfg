@@ -22,7 +22,7 @@ api/
 ├── requirements.txt         Exact pins the image installs (root requirements.txt includes it)
 ├── Dockerfile               linux/arm64 python:3.12-slim (no gcc)
 ├── routers/
-│   ├── chat.py              B — AgentRunner SSE + 5 tools + read-only Cypher gateway + suggested_followups
+│   ├── chat.py              B — AgentRunner SSE + 5 tools + read-only Cypher gateway + history + suggested_followups
 │   ├── search.py            A — hybrid BM25+KNN with Cohere reranker
 │   ├── insights.py          C — Neptune aggregates + templated summary (JSON, no LLM)
 │   ├── spec_match.py        D — req → candidates + standards subgraph
@@ -112,6 +112,13 @@ api/
   `401 {"error": "invalid token"}`. `/api/auth/login` issues the OAuth
   `state` cookie (`mfg_oauth_state`); `/callback` 400s on mismatch.
   `/api/auth/*` is exempt from the middleware
+- **Conversation history** — `ChatRequest.history` (earlier turns, oldest
+  first) → `AgentRunner.run_stream(..., history=)` → `history_messages()`
+  (complete pairs only, clipped, ≤ `HISTORY_MAX_PAIRS` / `HISTORY_MAX_CHARS`,
+  text only). `_screen_history` INPUT-checks the replayed questions in a
+  worker thread alongside the current question; blocked → history dropped +
+  `log` event. The system prompt tells the model earlier answers were
+  tool-grounded (otherwise Sonnet 5.5 disowns them). ADR-012
 - **Session-scoped tools** — `chat._build_tools(session_id)` builds the tool
   list per request; `memory_save` is bound to the request's session (the
   model never supplies `session_id`)
@@ -127,6 +134,11 @@ api/
 
 ## Gotchas
 
+- **`memory_save` fails today** — `services/memory.py` writes to DynamoDB
+  table `ontology-mfg-dev-memory`, which does not exist, and the API task
+  role has no DynamoDB permission; the tool returns an error the model
+  acknowledges. Conversation context does not depend on it (ADR-012).
+  Fixing it needs a CDK table + an IAM grant (explicit review)
 - **Deterministic fallback first** — every scenario must have a synthetic
   fallback that renders without external services (including when
   `NEPTUNE_ENDPOINT` is unset — `NeptuneClient()` raises). Don't add a

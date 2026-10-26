@@ -41,7 +41,7 @@ CloudFront.
 | Layer | Tech |
 |-------|------|
 | API | FastAPI 0.162 on Python 3.12 (`pyproject.toml` requires-python>=3.12) · sse-starlette · boto3 · PyJWT |
-| Web | Next.js 16 (App Router, standalone) · React 19 · Tailwind · Cytoscape.js |
+| Web | Next.js 16 (App Router, standalone) · React 19 · Tailwind CSS 4 · Cytoscape.js |
 | LLM | Bedrock Converse — Sonnet 5.5 (chat agent) + Haiku 4.5 (8D, follow-ups, codegraph) · Bedrock Guardrails |
 | Graph | Amazon Neptune 1.4.8.1 (openCypher, VPC-internal) |
 | Search | Amazon OpenSearch Serverless (VECTORSEARCH, k-NN HNSW) |

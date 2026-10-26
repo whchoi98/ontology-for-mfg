@@ -86,6 +86,9 @@ ARM64 behind a Cognito-protected CloudFront distribution at
 ### Query / API
 - FastAPI 0.162 (Python 3.12) — 16 routers (12 scenarios A–L + objects +
   ops + auth + health). SSE for chat / 8D; the other scenarios are JSON.
+- Chat is multi-turn without server state: the web sends the completed
+  turns as `history`; the agent replays ≤ 6 pairs as text and
+  guardrail-checks the replayed questions. ADR-012.
 - Cypher gateway hardening:
   - 22-class **label allowlist** (`api/routers/objects.py`) — Cypher
     can't parameterize labels, so any user-provided label is validated
@@ -279,6 +282,8 @@ See [`docs/decisions/`](decisions/) for full ADRs. Headlines:
   chatbot launcher (v0.5.5)
 - **ADR-011** — Guardrail policy: real input/output checks, STANDARD tier,
   block vs detect-only topic modes, probe-measured (v0.6.0)
+- **ADR-012** — Chat conversation context: client-held history, replayed as
+  text, guardrail-screened (v0.7.0)
 
 ## Operations
 

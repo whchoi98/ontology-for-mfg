@@ -2,7 +2,7 @@
 
 Project memory for Claude Code on **ontology-for-mfg** — a Hi-Tech manufacturing
 ontology PoC demo (AMZN Tech, Korean / English UI). Mirrors the sister project
-`ontology-for-retail`. Currently at **v0.6.0**.
+`ontology-for-retail`. Currently at **v0.7.0**.
 
 ## Overview
 
@@ -27,7 +27,7 @@ ontology PoC demo (AMZN Tech, Korean / English UI). Mirrors the sister project
 | Layer | Tech |
 |-------|------|
 | API | FastAPI 0.162 (Python 3.12) · sse-starlette 3.5 · boto3 1.43 · opensearch-py 2.7 · PyJWT |
-| Web | Next.js 16 (App Router, standalone, Turbopack) · React 19 · Tailwind · Cytoscape.js · jsPDF + html2canvas |
+| Web | Next.js 16 (App Router, standalone, Turbopack) · React 19 · Tailwind CSS 4 (CSS-first `@theme`) · Cytoscape.js · jsPDF + html2canvas |
 | Knowledge graph | Amazon Neptune 1.4.8.1 (openCypher) — VPC-internal, accessed via API only; API role is read-only |
 | Search | Amazon OpenSearch Serverless (VECTORSEARCH collection, k-NN HNSW, Titan v2 1024-d) |
 | LLM | Bedrock Converse API — `global.anthropic.claude-sonnet-5-5` (chat agent, effort via `MFG_SONNET_EFFORT`), `global.anthropic.claude-haiku-4-5-20251001-v1:0` (8D writer, follow-ups, codegraph community labelling) |
@@ -69,7 +69,7 @@ ontology PoC demo (AMZN Tech, Korean / English UI). Mirrors the sister project
 │   └── guardrail_probe.py    False-positive probe for the deployed guardrail
 ├── docs/
 │   ├── architecture.md       System design + diagrams
-│   ├── decisions/ADR-*.md    ADR-001 … ADR-011
+│   ├── decisions/ADR-*.md    ADR-001 … ADR-012
 │   ├── runbooks/*.md         Deploy / data load / auth / model swap / SSE / CI / incidents
 │   └── deploy-logs/          Raw deploy snapshots (use runbooks instead)
 ├── tests/                pytest — services, routers, integration, data generation, ontology
@@ -138,6 +138,13 @@ for the full deploy procedure with safety checks.
   active persona's KPI tone. Emitted as a `suggested_followups` SSE event
   before `stop`; failures / timeouts degrade to []. Web UI renders clickable
   chips below the last assistant message.
+- **Multi-turn context is client-held** — `/api/chat` keeps no conversation
+  state (two ECS tasks, no stickiness). The web sends `history` (completed
+  `end_turn` turns only, `web/lib/chat-history.ts`); `agent.history_messages`
+  keeps ≤ 6 user→assistant pairs / 24K chars, replayed as **text only** (no
+  reasoning blocks across turns). The replayed questions are INPUT-checked by
+  the guardrail too — forged history is dropped, not sent to the model.
+  ADR-012.
 - **Bedrock timeout safety net** — Every Bedrock-backed handler bounds the
   call with `concurrent.futures.ThreadPoolExecutor.submit().result(timeout=25)`
   and falls back to a deterministic template; see `_BEDROCK_BUDGET_S` in
@@ -230,7 +237,7 @@ the new version (see `docs/runbooks/deploy-production.md`).
 ## Testing & CI
 
 - `pytest` from project root — no integration AWS calls in unit suites
-  (369 tests at v0.6.0; web vitest 63; cdk Jest 36)
+  (pytest 379 at v0.7.0; web vitest 71; cdk Jest 41)
 - `tests/integration/` — cross-cutting contract tests (12-scenario wiring,
   Pydantic `response_model` coverage, graph contract); runs in the same
   suite, no AWS needed
