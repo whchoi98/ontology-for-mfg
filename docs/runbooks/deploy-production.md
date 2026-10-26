@@ -101,8 +101,9 @@ What it does:
    checks is rolled back by the ECS deployment circuit breaker.
 6. Prints each tag's digest next to the digests of the running tasks.
 
-Typical duration: 6–9 minutes when both images are built (web ~4 min), 3–5
-minutes for the CloudFormation rollout alone.
+Measured at v0.7.0 (2026-10-26): 4 min 50 s for both images built and rolled
+out (warm Docker cache); the CloudFormation rollout alone takes ~3 min 45 s.
+A cold web build adds a few minutes.
 
 ⚠️ **If you see "Layer already exists" on every layer**, the build context
 did not change. Likely culprits: building from inside `web/`, or a stale
