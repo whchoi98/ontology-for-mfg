@@ -19,8 +19,10 @@ infra-cdk/
     ├── ai-stack.ts            Bedrock Guardrail (STANDARD tier, 4 topics) · KB IAM role ·
     │                           AOSS data access policy (KB / loader / API principals).
     │                           The Knowledge Base itself is NOT created here (post-deploy)
-    ├── compute-stack.ts       ECR repos · ECS cluster · ApiService · WebService ·
-    │                           ALB · target groups · IAM task roles (API: Neptune read-only)
+    ├── compute-stack.ts       ECR repos (IMMUTABLE tags, lifecycle) · ECS cluster ·
+    │                           ApiService · WebService (image tag from SSM, circuit
+    │                           breaker) · ALB · target groups · IAM task roles
+    │                           (API: Neptune read-only)
     ├── edge-stack.ts          Cognito User Pool + app client + Hosted UI domain ·
     │                           CloudFront distribution · ACM cert (us-east-1) ·
     │                           Lambda@Edge · custom domain
@@ -54,10 +56,14 @@ npx cdk deploy ontology-mfg-dev-compute --require-approval never \
 npx cdk deploy --all --require-approval never <same context flags>
 ```
 
-⚠️ **Code-only changes don't need CDK** — pushing a new image to ECR + an
-ECS `update-service --force-new-deployment` is the day-to-day deploy
-path. CDK is only for infrastructure changes (new env var, new IAM
-permission, new resource). See `docs/runbooks/deploy-production.md`.
+⚠️ **Releases go through ComputeStack** — `scripts/deploy.sh` pushes
+`:<git sha>` (ECR repos are `IMMUTABLE`), writes it to SSM
+`/ontology-mfg-dev/image-tag/{api,web}` and runs `cdk deploy
+ontology-mfg-dev-compute --exclusively --force`. The task definitions read
+the tag from SSM at deploy time (`valueForStringParameter`), so any compute
+deploy keeps the running builds. Never `docker push :latest` +
+`force-new-deployment` — the task definitions no longer reference `:latest`.
+See `docs/runbooks/deploy-production.md`.
 
 ## Conventions
 
@@ -100,6 +106,15 @@ permission, new resource). See `docs/runbooks/deploy-production.md`.
 
 ## Gotchas
 
+- **ECS circuit breaker is set on the L1** — `addPropertyOverride(
+  'DeploymentConfiguration.DeploymentCircuitBreaker', …)`. The L2
+  `circuitBreaker` prop also adds `DeploymentController {Type: ECS}`, which
+  CloudFormation treats as a *replacement* of the fixed-name services (Jest
+  forbids the property)
+- **Image-tag SSM parameters are created out-of-band** (by
+  `scripts/deploy.sh` / the runbook), not by CDK — a CDK-owned parameter
+  would reset the value on every deploy. A compute deploy fails at change-set
+  creation if they are missing
 - **AIStack ≠ Cognito / KB** — Cognito lives in EdgeStack (us-east-1). The
   Bedrock KB needs the AOSS vector index to exist first, which CloudFormation
   can't create, so `knowledgeBaseId` is `'pending-post-deploy'` (commit

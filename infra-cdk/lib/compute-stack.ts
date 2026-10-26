@@ -6,6 +6,7 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 
 export interface ComputeStackProps extends StackProps {
@@ -31,18 +32,28 @@ export class ComputeStack extends Stack {
     const prefix = `${projectName}-${envName}`;
 
     // ==== ECR (×2) ====
-    this.webRepo = new ecr.Repository(this, 'WebRepo', {
-      repositoryName: `${prefix}-web`,
+    // Immutable tags: an image is pushed once as :<git sha> (scripts/deploy.sh) and never
+    // overwritten, so a task definition revision always names the exact build it runs.
+    const repoProps = {
       imageScanOnPush: true,
+      imageTagMutability: ecr.TagMutability.IMMUTABLE,
+      lifecycleRules: [
+        { rulePriority: 1, description: 'untagged layers from rebuilds',
+          tagStatus: ecr.TagStatus.UNTAGGED, maxImageAge: cdk.Duration.days(14) },
+        { rulePriority: 2, description: 'keep the newest 30 builds (rollback window)',
+          tagStatus: ecr.TagStatus.ANY, maxImageCount: 30 },
+      ],
       removalPolicy: RemovalPolicy.DESTROY,
       emptyOnDelete: true,
-    });
-    this.apiRepo = new ecr.Repository(this, 'ApiRepo', {
-      repositoryName: `${prefix}-api`,
-      imageScanOnPush: true,
-      removalPolicy: RemovalPolicy.DESTROY,
-      emptyOnDelete: true,
-    });
+    };
+    this.webRepo = new ecr.Repository(this, 'WebRepo', { repositoryName: `${prefix}-web`, ...repoProps });
+    this.apiRepo = new ecr.Repository(this, 'ApiRepo', { repositoryName: `${prefix}-api`, ...repoProps });
+
+    // The tag each service runs lives in SSM (/<prefix>/image-tag/{api,web}), written by
+    // scripts/deploy.sh. CloudFormation resolves it on every deploy, so a compute deploy
+    // for an unrelated infra change keeps the running build instead of reverting it.
+    const imageTag = (service: 'api' | 'web') =>
+      ssm.StringParameter.valueForStringParameter(this, `/${prefix}/image-tag/${service}`);
 
     // ==== ECS Cluster ====
     this.cluster = new ecs.Cluster(this, 'Cluster', {
@@ -113,7 +124,7 @@ export class ComputeStack extends Stack {
     });
     webTask.addContainer('web', {
       containerName: 'web',
-      image: ecs.ContainerImage.fromEcrRepository(this.webRepo, 'latest'),
+      image: ecs.ContainerImage.fromEcrRepository(this.webRepo, imageTag('web')),
       portMappings: [{ containerPort: 3000 }],
       logging: ecs.LogDrivers.awsLogs({ logGroup: webLogs, streamPrefix: 'web' }),
       environment: {
@@ -139,7 +150,7 @@ export class ComputeStack extends Stack {
     });
     apiTask.addContainer('api', {
       containerName: 'api',
-      image: ecs.ContainerImage.fromEcrRepository(this.apiRepo, 'latest'),
+      image: ecs.ContainerImage.fromEcrRepository(this.apiRepo, imageTag('api')),
       portMappings: [{ containerPort: 8000 }],
       logging: ecs.LogDrivers.awsLogs({ logGroup: apiLogs, streamPrefix: 'api' }),
       environment: {
@@ -156,11 +167,14 @@ export class ComputeStack extends Stack {
 
     // ==== Services ====
     // Plan 2 Tasks 26-28: Web image built + pushed; desiredCount 0 → 2.
+    // Releases roll out through CloudFormation (new task definition revision): start the
+    // new tasks before stopping old ones (minHealthyPercent 100), and see rollbackOnFailure.
     const webService = new ecs.FargateService(this, 'WebService', {
       serviceName: `${prefix}-web`,
       cluster: this.cluster,
       taskDefinition: webTask,
       desiredCount: 2,
+      minHealthyPercent: 100,
       securityGroups: [webSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
@@ -170,10 +184,19 @@ export class ComputeStack extends Stack {
       cluster: this.cluster,
       taskDefinition: apiTask,
       desiredCount: 2,
+      minHealthyPercent: 100,
       securityGroups: [apiSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
     });
+
+    // A build that fails its health checks rolls back instead of holding the stack update.
+    // Set on the L1: the L2 `circuitBreaker` prop also adds DeploymentController {Type: ECS},
+    // which CloudFormation treats as a replacement of these fixed-name services.
+    for (const service of [webService, apiService]) {
+      (service.node.defaultChild as ecs.CfnService).addPropertyOverride(
+        'DeploymentConfiguration.DeploymentCircuitBreaker', { Enable: true, Rollback: true });
+    }
 
     // ==== ALB + Listener + Target Groups ====
     this.alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {

@@ -104,11 +104,10 @@ python -m ontology.build_ttl               # regenerate ontology/schema.ttl afte
 make load                                  # schema + graph (--reset) + search (index recreate)
 make load-schema | load-graph | load-search
 
-# Deploy (build + push + force ECS redeploy) — EdgeStack first when auth/edge changed
-docker build --platform linux/arm64 -f api/Dockerfile -t <ecr>/ontology-mfg-dev-api:latest .
-docker push <ecr>/ontology-mfg-dev-api:latest
-aws ecs update-service --cluster ontology-mfg-dev-cluster \
-  --service ontology-mfg-dev-api --force-new-deployment
+# Deploy — immutable :<git sha> tags via SSM + ComputeStack (EdgeStack first when auth/edge changed)
+scripts/deploy.sh                          # build (if new) + push + roll out api & web at HEAD
+scripts/deploy.sh --only api               # one service
+scripts/deploy.sh --only api --tag <sha>   # rollback to an existing build
 
 # Guardrail false-positive probe — after any ai-stack.ts guardrail change + deploy
 python3 scripts/guardrail_probe.py

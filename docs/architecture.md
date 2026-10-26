@@ -149,8 +149,10 @@ ARM64 behind a Cognito-protected CloudFront distribution at
   - **cdk** — `npm test` Jest invariant suite (IAM scope incl. Neptune
     read-only, CloudFront SSE compression, guardrail tier / topic modes,
     Lambda@Edge runtime) + `npm audit --audit-level=high`
-- Image deploy is manual: `docker build → ECR push →
-  aws ecs update-service --force-new-deployment`. See
+- Image deploy is manual: `scripts/deploy.sh` → `docker build` →
+  ECR push of an immutable `:<git sha>` tag → SSM
+  `/ontology-mfg-dev/image-tag/{api,web}` → `cdk deploy` ComputeStack (new
+  task definition revision, circuit-breaker rollback). See
   `docs/runbooks/deploy-production.md`.
 
 ### Security
@@ -238,8 +240,8 @@ User → CloudFront → ALB → API → (Neptune ∪ AOSS ∪ Bedrock) → SSE �
 
 | Service | Image | Desired | Task role |
 |---------|-------|---------|-----------|
-| `ontology-mfg-dev-api` | `ontology-mfg-dev-api:latest` (ARM64) | 2 | Bedrock (incl. ApplyGuardrail) + Neptune read-only + AOSS + Secrets Manager |
-| `ontology-mfg-dev-web` | `ontology-mfg-dev-web:latest` (ARM64) | 2 | minimal |
+| `ontology-mfg-dev-api` | `ontology-mfg-dev-api:<git sha>` (ARM64, tag from SSM) | 2 | Bedrock (incl. ApplyGuardrail) + Neptune read-only + AOSS + Secrets Manager |
+| `ontology-mfg-dev-web` | `ontology-mfg-dev-web:<git sha>` (ARM64, tag from SSM) | 2 | minimal |
 
 ## Bedrock Model Routing
 

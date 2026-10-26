@@ -1,11 +1,19 @@
 # scripts/CLAUDE.md
 
-One-shot Python utilities: the graphify community labeller and the
-guardrail false-positive probe. Expand here for any analytical / one-time /
+One-shot utilities: the release script, the graphify community labeller and
+the guardrail false-positive probe. Expand here for any analytical / one-time /
 migration helpers.
 
 ## Files
 
+- `deploy.sh` — Releases api / web by **immutable tag** (12-char git SHA):
+  builds + pushes only tags not yet in ECR, writes
+  `/ontology-mfg-dev/image-tag/{api,web}` in SSM, runs `cdk deploy
+  ontology-mfg-dev-compute --exclusively --force`, restores the previous SSM
+  values if the stack update fails, then prints tag digest vs running
+  digests. Refuses a dirty tree (`ALLOW_DIRTY=1` → `<sha>-dirty-<utc>`).
+  `--only api|web`, `--tag <tag>` (rollback, no build). Procedure:
+  `docs/runbooks/deploy-production.md`
 - `label_communities.py` — Read `graphify-out/graph.json`, group nodes by
   Louvain community, ask Bedrock Haiku 4.5 for a Korean 2–5 word label per
   community, then patch:

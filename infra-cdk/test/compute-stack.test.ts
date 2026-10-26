@@ -27,6 +27,46 @@ describe('ComputeStack', () => {
     template.resourceCountIs('AWS::ECR::Repository', 2);
   });
 
+  // Release tags are immutable git SHAs (scripts/deploy.sh); `latest` can no longer be
+  // moved under a running service.
+  test('ECR tags are immutable and old builds expire', () => {
+    const repos = Object.values(template.findResources('AWS::ECR::Repository')) as any[];
+    for (const repo of repos) {
+      expect(repo.Properties.ImageTagMutability).toBe('IMMUTABLE');
+      const rules = JSON.parse(repo.Properties.LifecyclePolicy.LifecyclePolicyText).rules;
+      expect(rules.map((r: any) => r.selection.tagStatus)).toEqual(['untagged', 'any']);
+    }
+  });
+
+  test('task definitions take their image tag from SSM, never :latest', () => {
+    const params = template.toJSON().Parameters ?? {};
+    const ssmDefaults = Object.values(params)
+      .filter((p: any) => p.Type === 'AWS::SSM::Parameter::Value<String>')
+      .map((p: any) => p.Default);
+    expect(ssmDefaults).toEqual(expect.arrayContaining([
+      '/ontology-mfg-dev/image-tag/api', '/ontology-mfg-dev/image-tag/web',
+    ]));
+    const taskDefs = Object.values(template.findResources('AWS::ECS::TaskDefinition'));
+    expect(taskDefs).toHaveLength(2);
+    for (const td of taskDefs) {
+      const image = JSON.stringify((td as any).Properties.ContainerDefinitions[0].Image);
+      expect(image).not.toContain(':latest');
+      expect(image).toMatch(/SsmParameterValue.*imagetag/i);
+    }
+  });
+
+  test('services roll back a failed deployment', () => {
+    const services = Object.values(template.findResources('AWS::ECS::Service')) as any[];
+    expect(services).toHaveLength(2);
+    for (const svc of services) {
+      expect(svc.Properties.DeploymentConfiguration.DeploymentCircuitBreaker)
+        .toEqual({ Enable: true, Rollback: true });
+      expect(svc.Properties.DeploymentConfiguration.MinimumHealthyPercent).toBe(100);
+      // Adding DeploymentController to these fixed-name services means a replacement.
+      expect(svc.Properties.DeploymentController).toBeUndefined();
+    }
+  });
+
   // The loader task role predates CDK; data/load_search.py now embeds documents with Titan v2.
   test('loader role may invoke only the Titan v2 embedding model', () => {
     const policies = Object.values(template.findResources('AWS::IAM::Policy')) as any[];
