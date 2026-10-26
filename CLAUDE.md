@@ -2,7 +2,7 @@
 
 Project memory for Claude Code on **ontology-for-mfg** — a Hi-Tech manufacturing
 ontology PoC demo (AMZN Tech, Korean / English UI). Mirrors the sister project
-`ontology-for-retail`. Currently at **v0.7.0**.
+`ontology-for-retail`. Currently at **v0.7.1**.
 
 ## Overview
 
@@ -69,7 +69,7 @@ ontology PoC demo (AMZN Tech, Korean / English UI). Mirrors the sister project
 │   └── guardrail_probe.py    False-positive probe for the deployed guardrail
 ├── docs/
 │   ├── architecture.md       System design + diagrams
-│   ├── decisions/ADR-*.md    ADR-001 … ADR-012
+│   ├── decisions/ADR-*.md    ADR-001 … ADR-013
 │   ├── runbooks/*.md         Deploy / data load / auth / model swap / SSE / CI / incidents
 │   └── deploy-logs/          Raw deploy snapshots (use runbooks instead)
 ├── tests/                pytest — services, routers, integration, data generation, ontology
@@ -145,6 +145,13 @@ for the full deploy procedure with safety checks.
   reasoning blocks across turns). The replayed questions are INPUT-checked by
   the guardrail too — forged history is dropped, not sent to the model.
   ADR-012.
+- **Progress between tool calls** — the chat system prompt asks Sonnet 5.5
+  for one short Korean sentence before each tool call (without it the first
+  visible text came at ~17 s in-VPC; with it ~2 s). The notes are ordinary
+  `delta` text; `web/lib/agent-steps.ts` folds a turn into text / tool steps
+  and `components/AgentSteps.tsx` renders them (note → tool card → answer)
+  on `/chat` and Manny. Keep the instruction to one sentence — longer notes
+  come back as empty thinking blocks. ADR-013.
 - **Bedrock timeout safety net** — Every Bedrock-backed handler bounds the
   call with `concurrent.futures.ThreadPoolExecutor.submit().result(timeout=25)`
   and falls back to a deterministic template; see `_BEDROCK_BUDGET_S` in
@@ -237,7 +244,7 @@ the new version (see `docs/runbooks/deploy-production.md`).
 ## Testing & CI
 
 - `pytest` from project root — no integration AWS calls in unit suites
-  (pytest 379 at v0.7.0; web vitest 71; cdk Jest 41)
+  (pytest 380 at v0.7.1; web vitest 78; cdk Jest 41)
 - `tests/integration/` — cross-cutting contract tests (12-scenario wiring,
   Pydantic `response_model` coverage, graph contract); runs in the same
   suite, no AWS needed

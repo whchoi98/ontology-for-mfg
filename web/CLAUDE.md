@@ -43,12 +43,14 @@ web/
 │   ├── ScenarioHeader.tsx     Scenario A–L breadcrumb + tech sublabel
 │   ├── CytoscapeView.tsx      Hardened graph viewer (dedupe/dangling-edge guards)
 │   ├── MarkdownView.tsx       react-markdown wrapper
+│   ├── AgentSteps.tsx         Live chat turn: progress notes → tool cards → answer (ADR-013)
 │   ├── KpiStrip.tsx           Top KPI row for /insights
 │   ├── SCMMap.tsx             Lane map for /lane
 │   └── GuidedTour.tsx         Optional onboarding tour
 ├── lib/
 │   ├── api-base.ts            apiUrl() — single source of the `/api` prefix
 │   ├── api-client.ts          fetch helpers + SSE streamers (chat, eight_d, sse_stream)
+│   ├── agent-steps.ts         applyStepEvent() — folds a chat stream into text / tool steps (ADR-013)
 │   ├── chat-history.ts        historyFrom() / isCompleteStop() — client-held chat context (ADR-012)
 │   ├── sse-events.ts          TS mirror of api/schemas/sse.py event union
 │   ├── manny-bridge.ts        /manny ↔ FloatingChat same-origin postMessage (ESC close)
@@ -96,6 +98,11 @@ web/
   on failure (`error:<status>`, `fetch_error:…`) and on cancel (`aborted`).
   Consumers guard callbacks with a stream token (drop late events after a
   cancel / persona switch), cancel on unmount, and render `error` events.
+- **Chat turns are steps** — `/chat` and Manny fold `delta` / `tool_call` /
+  `tool_result` / `stop` through `applyStepEvent` (`lib/agent-steps.ts`) and
+  render `<AgentSteps>`; text before a tool is a progress note, text after
+  the last tool is the answer. The message `text` (history, MD/PDF export) is
+  `answerText(steps)`. Don't reintroduce a bare "…" placeholder. ADR-013.
 - **API URLs** — build them with `apiUrl()` from `lib/api-base.ts`
   (`NEXT_PUBLIC_API_BASE` is the full prefix incl. `/api`); never hardcode
   `/api/...` in pages or components.

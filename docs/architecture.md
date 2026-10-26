@@ -89,6 +89,9 @@ ARM64 behind a Cognito-protected CloudFront distribution at
 - Chat is multi-turn without server state: the web sends the completed
   turns as `history`; the agent replays ≤ 6 pairs as text and
   guardrail-checks the replayed questions. ADR-012.
+- Progress is streamed: the agent writes one Korean sentence before each
+  tool call, and the web renders note → tool card → answer as it arrives
+  (first visible text ~2 s instead of ~17 s). ADR-013.
 - Cypher gateway hardening:
   - 22-class **label allowlist** (`api/routers/objects.py`) — Cypher
     can't parameterize labels, so any user-provided label is validated
@@ -284,6 +287,8 @@ See [`docs/decisions/`](decisions/) for full ADRs. Headlines:
   block vs detect-only topic modes, probe-measured (v0.6.0)
 - **ADR-012** — Chat conversation context: client-held history, replayed as
   text, guardrail-screened (v0.7.0)
+- **ADR-013** — Chat progress streaming: a note before each tool call,
+  rendered as live steps (v0.7.1)
 
 ## Operations
 

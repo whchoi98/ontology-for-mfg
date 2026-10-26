@@ -119,6 +119,11 @@ api/
   worker thread alongside the current question; blocked → history dropped +
   `log` event. The system prompt tells the model earlier answers were
   tool-grounded (otherwise Sonnet 5.5 disowns them). ADR-012
+- **Progress notes** — `_SYSTEM_PROMPT_TEMPLATE` asks for one short Korean
+  sentence before each tool call; it streams as normal `delta` text. Sonnet
+  5.5 otherwise writes nothing until the final answer (measured ~17 s
+  in-VPC), and notes longer than a sentence or two come back as empty
+  thinking blocks under the default `display: "omitted"`. ADR-013
 - **Session-scoped tools** — `chat._build_tools(session_id)` builds the tool
   list per request; `memory_save` is bound to the request's session (the
   model never supplies `session_id`)
@@ -139,6 +144,12 @@ api/
   role has no DynamoDB permission; the tool returns an error the model
   acknowledges. Conversation context does not depend on it (ADR-012).
   Fixing it needs a CDK table + an IAM grant (explicit review)
+- **The answer after tool results starts ~8 s late, then bursts** — measured
+  in-VPC on every `thinking` variant: `converse_stream()` returns ~8 s after
+  the call and the first second carries ~1,500 chars, while `latencyMs` shows
+  steady generation. Without tool results the same length streams evenly.
+  It is upstream of us — not CloudFront / ALB / sse-starlette buffering
+  (all measured, ADR-013); the UI covers it with a waiting line
 - **Deterministic fallback first** — every scenario must have a synthetic
   fallback that renders without external services (including when
   `NEPTUNE_ENDPOINT` is unset — `NeptuneClient()` raises). Don't add a
