@@ -1,5 +1,35 @@
 # CHANGELOG.md
 
+## 0.7.1 — 2026-10-26 (chat progress streaming)
+
+The chatbot no longer looks frozen while it works: it says what it is about
+to look up before each tool call, and `/chat` and Manny draw the turn as it
+streams — note, tool card, answer.
+
+### Measured first (ADR-013)
+- Bedrock, the API middleware stack and CloudFront all stream (deltas spread
+  evenly; `Compress: false`). In-VPC with real tools the first visible text
+  came at **17.1 s**: Sonnet 5.5 wrote no text between tool calls.
+- With one prompt line the first note arrives at **2.1 s**, then one per tool
+  round. `between_tools` and `thinking.display` variants were measured and
+  not adopted (slower overall / English reasoning summaries).
+- The final answer after tool results is still held ~8 s upstream and then
+  bursts; the UI shows "결과를 정리하고 있습니다…" for that wait.
+
+### Changes
+- `api/routers/chat.py` — system prompt: one short Korean sentence before each
+  tool call; the final answer must stand on its own. No SSE contract change.
+- `web/lib/agent-steps.ts` (new) — folds `delta` / `tool_call` / `tool_result`
+  / `stop` into ordered text / tool steps; tool cards get a row-count hint
+  (`42행`, `3건`, `오류: …`); a stream that stops mid-tool closes the card as
+  "중단됨".
+- `web/components/AgentSteps.tsx` (new) — renders the steps on `/chat` and
+  Manny: muted progress notes, tool cards (spinner while running, Cypher on
+  click), the answer as Markdown, and a waiting line between steps. Replaces
+  Manny's `…` placeholder and `tool:` footer.
+- History / MD / PDF use every text step joined by blank lines.
+- Tests: pytest 380 (+1), vitest 78 (+7).
+
 ## 0.7.0 — 2026-10-26 (multi-turn chat · immutable image tags · Tailwind CSS 4)
 
 The chat agent now keeps the conversation, releases are immutable
