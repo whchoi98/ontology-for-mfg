@@ -1,15 +1,4 @@
-boto3>=1.36.0
-botocore>=1.36.0
-pydantic>=2.10.0
-fastapi==0.115.6
-starlette<0.42
-sse-starlette>=2.1.3
-python-jose[cryptography]>=3.3.0
-uvicorn[standard]==0.34.0
-gremlinpython==3.7.2
-opensearch-py==2.7.1
-requests-aws4auth==1.3.1
-psycopg[binary]==3.2.3
-httpx==0.28.1
-rdflib==7.1.1
-requests>=2.32.0
+# Runtime pins — the single source of truth the images install, so CI tests (and
+# pip-audit scans) exactly what ships: api/Dockerfile and loader/Dockerfile.
+-r api/requirements.txt
+-r loader/requirements.txt
