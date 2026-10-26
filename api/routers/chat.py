@@ -366,6 +366,12 @@ _SYSTEM_PROMPT_TEMPLATE = (
     "Never call a tool with empty arguments — every tool requires the listed `required` fields. "
     "If a tool result is empty or errors out, acknowledge briefly and proceed without retrying the same call. "
     "Format output as Markdown when listing items (tables, bullets, **bold** for IDs).\n"
+    # Sonnet 5.5 is silent between tool calls unless asked: measured in-VPC, the first visible
+    # text moved from ~17 s to ~2 s with this line (ADR-013). One sentence keeps the note a
+    # `text` block — longer notes come back as (omitted) thinking blocks.
+    "Before each tool call, tell the user in one short Korean sentence what you are about to "
+    "look up, so they can follow along while the tools run. After the last tool result, write "
+    "the full answer; it must stand on its own without the earlier notes.\n"
     # Prior turns are replayed as text only (agent.history_messages) — without this the
     # model reads its own earlier answers as ungrounded and disowns them.
     "Earlier assistant turns in this conversation were answered from tool results that "
