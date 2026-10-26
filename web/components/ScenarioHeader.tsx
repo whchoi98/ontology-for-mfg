@@ -28,13 +28,13 @@ export function ScenarioHeader({ scenario, title, tech, wow, showPersona = true,
     <header className="border-b border-ink-700 bg-ink-900 px-6 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
       <div className="flex items-center gap-2 shrink-0">
         {scenario && (
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded border border-accent-500/40 bg-accent-500/10 text-accent-200 font-bold">
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded-sm border border-accent-500/40 bg-accent-500/10 text-accent-200 font-bold">
             시나리오 {scenario}
           </span>
         )}
         <h1 className="text-sm font-semibold text-ink-100">{title}</h1>
         {wow && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 font-mono font-bold">
+          <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-orange-500/20 text-orange-300 font-mono font-bold">
             WOW
           </span>
         )}
@@ -43,7 +43,7 @@ export function ScenarioHeader({ scenario, title, tech, wow, showPersona = true,
         {tech}
       </div>
       {showPersona && persona.active && (
-        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-orange-500/40 bg-orange-500/10 text-orange-200 shrink-0">
+        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm border border-orange-500/40 bg-orange-500/10 text-orange-200 shrink-0">
           {PERSONA_LABEL[persona.active] ?? persona.active}
         </span>
       )}

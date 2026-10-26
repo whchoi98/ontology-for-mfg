@@ -43,7 +43,7 @@ export default function EsgPage() {
         <p className="text-sm text-ink-400 mb-4">Scope 1/2/3 배출량 + EU CBAM 2026 부담금 + IRA 적격 여부</p>
         <form onSubmit={submit} className="flex gap-2 mb-6">
           <select
-            className="bg-ink-800 border border-ink-700 rounded-md px-3 py-2.5 text-sm text-ink-100 outline-none focus:border-accent-500"
+            className="bg-ink-800 border border-ink-700 rounded-md px-3 py-2.5 text-sm text-ink-100 outline-hidden focus:border-accent-500"
             value={plantId}
             onChange={(e) => setPlantId(e.target.value)}
           >

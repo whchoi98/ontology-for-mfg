@@ -32,7 +32,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       <div className="flex h-screen overflow-hidden">
         <Sidebar />
         <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-end gap-3 px-6 h-12 bg-ink-950/85 backdrop-blur border-b border-ink-800/60 shrink-0">
+          <div className="flex items-center justify-end gap-3 px-6 h-12 bg-ink-950/85 backdrop-blur-sm border-b border-ink-800/60 shrink-0">
             <GuidedTour />
             <PersonaSwitch />
           </div>

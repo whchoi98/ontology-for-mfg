@@ -353,7 +353,7 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               disabled={streaming}
               placeholder={`${PERSONA_LABEL[active]} 페르소나로 질문하기...`}
-              className="flex-1 rounded-lg border border-ink-700 bg-ink-900 px-4 py-2 text-sm text-ink-100 outline-none focus:ring-2 focus:ring-accent-500 placeholder:text-ink-500 disabled:opacity-50"
+              className="flex-1 rounded-lg border border-ink-700 bg-ink-900 px-4 py-2 text-sm text-ink-100 outline-hidden focus:ring-2 focus:ring-accent-500 placeholder:text-ink-500 disabled:opacity-50"
             />
             <button
               type="submit"
@@ -377,7 +377,7 @@ export default function ChatPage() {
                   return (
                     <li
                       key={i}
-                      className={`flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded border ${meta.tone}`}
+                      className={`flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-sm border ${meta.tone}`}
                     >
                       <span className="text-[9px] opacity-60">{i + 1}.</span>
                       <span className="font-semibold">{meta.label}</span>
@@ -386,7 +386,7 @@ export default function ChatPage() {
                   );
                 })}
                 {streaming && (
-                  <li className="text-[11px] font-mono px-2 py-1 rounded border border-ink-700 bg-ink-800/50 text-ink-400 animate-pulse-soft">
+                  <li className="text-[11px] font-mono px-2 py-1 rounded-sm border border-ink-700 bg-ink-800/50 text-ink-400 animate-pulse-soft">
                     다음 단계…
                   </li>
                 )}
@@ -409,7 +409,7 @@ export default function ChatPage() {
                     onClick={() => sendSample(p)}
                     className="group flex items-start gap-2 text-left px-3 py-2.5 rounded-lg border border-ink-700 bg-ink-900 hover:border-accent-500/60 hover:bg-ink-800 transition disabled:opacity-50"
                   >
-                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 mt-0.5 ${PERSONA_TONE[p.persona]}`}>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-sm border shrink-0 mt-0.5 ${PERSONA_TONE[p.persona]}`}>
                       {PERSONA_LABEL[p.persona]}
                     </span>
                     <span className="text-sm text-ink-200 leading-relaxed group-hover:text-accent-200">
@@ -439,7 +439,7 @@ export default function ChatPage() {
                   ? <p className="text-sm whitespace-pre-wrap leading-relaxed text-ink-100">{m.text}</p>
                   : <MarkdownView text={m.text || (streaming && !m.error ? "…" : "")} />}
                 {m.error && (
-                  <div role="alert" className="mt-2 flex items-start gap-1.5 text-xs rounded border border-red-500/30 bg-red-500/10 text-red-300 px-2.5 py-1.5 whitespace-pre-wrap">
+                  <div role="alert" className="mt-2 flex items-start gap-1.5 text-xs rounded-sm border border-red-500/30 bg-red-500/10 text-red-300 px-2.5 py-1.5 whitespace-pre-wrap">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                     <span>{m.error}</span>
                   </div>
@@ -481,7 +481,7 @@ export default function ChatPage() {
             {toolLog.map((t, i) => (
               <li
                 key={i}
-                className="p-2 rounded border border-ink-700 bg-ink-900"
+                className="p-2 rounded-sm border border-ink-700 bg-ink-900"
               >
                 <div className="font-mono text-xs text-accent-300">{t.tool}</div>
                 <pre className="text-xs text-ink-400 overflow-x-auto whitespace-pre-wrap break-all mt-1">

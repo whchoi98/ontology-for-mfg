@@ -143,7 +143,7 @@ export default function CompliancePage() {
                   onClick={() => { setActive(p.persona); setComponentId(p.value); run(p.value); }}
                   className="group flex items-start gap-2 text-left px-3 py-2.5 rounded-lg border border-ink-700 bg-ink-900 hover:border-accent-500/60 hover:bg-ink-800 transition disabled:opacity-50"
                 >
-                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 mt-0.5 ${PERSONA_TONE[p.persona]}`}>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-sm border shrink-0 mt-0.5 ${PERSONA_TONE[p.persona]}`}>
                     {PERSONA_LABEL[p.persona]}
                   </span>
                   <span className="text-sm text-ink-200 leading-relaxed group-hover:text-accent-200">
@@ -157,7 +157,7 @@ export default function CompliancePage() {
 
         <form onSubmit={submit} className="flex gap-2 mb-6">
           <input
-            className="flex-1 bg-ink-800 border border-ink-700 rounded-md px-3 py-2.5 text-sm text-ink-100 outline-none focus:border-accent-500 placeholder:text-ink-500"
+            className="flex-1 bg-ink-800 border border-ink-700 rounded-md px-3 py-2.5 text-sm text-ink-100 outline-hidden focus:border-accent-500 placeholder:text-ink-500"
             placeholder="예: AMZN-CMP-IC-00001"
             value={componentId}
             onChange={(e) => setComponentId(e.target.value)}
@@ -201,7 +201,7 @@ export default function CompliancePage() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-red-300 text-sm">{violationTitle(v)}</span>
                     {v.severity && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-red-500/40 text-red-300">
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm border border-red-500/40 text-red-300">
                         {v.severity}
                       </span>
                     )}

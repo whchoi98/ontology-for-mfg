@@ -190,11 +190,11 @@ export function GuidedTour() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/70 backdrop-blur-xs">
           <div className="relative w-full max-w-2xl mx-4 rounded-xl border border-ink-700 bg-ink-900 shadow-2xl">
             <button
               onClick={closeAndRemember}
-              className="absolute top-3 right-3 p-1.5 rounded hover:bg-ink-800 text-ink-400"
+              className="absolute top-3 right-3 p-1.5 rounded-sm hover:bg-ink-800 text-ink-400"
               aria-label="닫기"
             >
               <X className="w-4 h-4" />
@@ -205,8 +205,8 @@ export function GuidedTour() {
                 <div className={[
                   'w-10 h-10 rounded-lg flex items-center justify-center',
                   cur.wow
-                    ? 'bg-gradient-to-br from-orange-400 to-orange-600'
-                    : 'bg-gradient-to-br from-accent-400 to-accent-600',
+                    ? 'bg-linear-to-br/srgb from-orange-400 to-orange-600'
+                    : 'bg-linear-to-br/srgb from-accent-400 to-accent-600',
                 ].join(' ')}>
                   <Icon className="w-5 h-5 text-ink-950" />
                 </div>
@@ -214,7 +214,7 @@ export function GuidedTour() {
                   <div className="text-[10px] font-mono tracking-wider text-accent-300 flex items-center gap-2">
                     {cur.badge} · {step + 1} / {STEPS.length}
                     {cur.wow && (
-                      <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 text-[9px] font-bold uppercase tracking-wider">
+                      <span className="px-1.5 py-0.5 rounded-sm bg-orange-500/20 text-orange-300 text-[9px] font-bold uppercase tracking-wider">
                         WOW
                       </span>
                     )}
@@ -240,7 +240,7 @@ export function GuidedTour() {
                 <button
                   onClick={() => setStep((s) => Math.max(0, s - 1))}
                   disabled={step === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-ink-700 text-ink-300 text-xs disabled:opacity-30 hover:bg-ink-800"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-ink-700 text-ink-300 text-xs disabled:opacity-30 hover:bg-ink-800"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" /> 이전
                 </button>
@@ -248,7 +248,7 @@ export function GuidedTour() {
                 <Link
                   href={cur.href}
                   onClick={closeAndRemember}
-                  className="px-3 py-1.5 rounded bg-accent-500 text-ink-950 text-xs font-semibold hover:bg-accent-400"
+                  className="px-3 py-1.5 rounded-sm bg-accent-500 text-ink-950 text-xs font-semibold hover:bg-accent-400"
                 >
                   이 시나리오 열기 →
                 </Link>
@@ -256,14 +256,14 @@ export function GuidedTour() {
                 {step < STEPS.length - 1 ? (
                   <button
                     onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-ink-800 border border-ink-700 text-ink-100 text-xs hover:border-accent-500"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-ink-800 border border-ink-700 text-ink-100 text-xs hover:border-accent-500"
                   >
                     다음 <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 ) : (
                   <button
                     onClick={closeAndRemember}
-                    className="px-3 py-1.5 rounded bg-emerald-500 text-ink-950 text-xs font-semibold hover:bg-emerald-400"
+                    className="px-3 py-1.5 rounded-sm bg-emerald-500 text-ink-950 text-xs font-semibold hover:bg-emerald-400"
                   >
                     완료
                   </button>

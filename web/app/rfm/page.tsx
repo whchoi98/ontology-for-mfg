@@ -67,7 +67,7 @@ export default function RfmPage() {
         <p className="text-sm text-ink-400 mb-4">Recency·Frequency·Monetary 기반 협력사 등급 분석</p>
         <form onSubmit={submit} className="flex gap-2 mb-6">
           <select
-            className="bg-ink-800 border border-ink-700 rounded-md px-3 py-2.5 text-sm text-ink-100 outline-none focus:border-accent-500"
+            className="bg-ink-800 border border-ink-700 rounded-md px-3 py-2.5 text-sm text-ink-100 outline-hidden focus:border-accent-500"
             value={tier}
             onChange={(e) => setTier(Number(e.target.value))}
           >

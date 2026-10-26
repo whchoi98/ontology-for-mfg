@@ -132,8 +132,8 @@ export default function PricePage() {
               <div className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold">추천</div>
               {SAMPLES.map((s, i) => (
                 <button key={i} onClick={() => { setActive(s.persona); setSelected(s.cid); }}
-                  className="w-full text-left px-2 py-1.5 rounded border border-ink-700 bg-ink-800 hover:border-sky-500/60 transition flex items-center gap-2">
-                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${PERSONA_TONE[s.persona]}`}>{PERSONA_LABEL[s.persona]}</span>
+                  className="w-full text-left px-2 py-1.5 rounded-sm border border-ink-700 bg-ink-800 hover:border-sky-500/60 transition flex items-center gap-2">
+                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-sm border shrink-0 ${PERSONA_TONE[s.persona]}`}>{PERSONA_LABEL[s.persona]}</span>
                   <span className="text-[11px] text-ink-200 truncate">{s.label}</span>
                 </button>
               ))}
@@ -142,7 +142,7 @@ export default function PricePage() {
           <div className="px-3 py-2 border-b border-ink-700 relative">
             <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-500" />
             <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="부품 필터"
-              className="w-full rounded bg-ink-800 border border-ink-700 text-xs pl-8 pr-3 py-1.5 text-ink-100 outline-none focus:border-sky-500 placeholder:text-ink-500" />
+              className="w-full rounded-sm bg-ink-800 border border-ink-700 text-xs pl-8 pr-3 py-1.5 text-ink-100 outline-hidden focus:border-sky-500 placeholder:text-ink-500" />
           </div>
           <ul className="flex-1 overflow-y-auto">
             {!samples && <li className="text-xs text-ink-500 italic p-4">로딩 중…</li>}
@@ -177,7 +177,7 @@ export default function PricePage() {
           {loading && <div className="mx-6 text-sm text-ink-400">분석 중…</div>}
           {result && (
             <div className="px-6 pb-6 space-y-5">
-              <article className="p-5 rounded-lg border border-sky-500/30 bg-gradient-to-br from-sky-500/10 to-sky-500/0">
+              <article className="p-5 rounded-lg border border-sky-500/30 bg-linear-to-br/srgb from-sky-500/10 to-sky-500/0">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="text-[10px] uppercase tracking-wider text-sky-300 font-semibold mb-1">Component</div>
@@ -192,7 +192,7 @@ export default function PricePage() {
                     </div>
                   </div>
                   {result.summary.best_supplier_name && (
-                    <div className="shrink-0 px-3 py-2 rounded border border-emerald-500/40 bg-emerald-500/10">
+                    <div className="shrink-0 px-3 py-2 rounded-sm border border-emerald-500/40 bg-emerald-500/10">
                       <div className="text-[9px] uppercase tracking-wider text-emerald-300 font-semibold">추천</div>
                       <div className="text-sm font-bold text-emerald-200">{result.summary.best_supplier_name}</div>
                     </div>
@@ -243,7 +243,7 @@ export default function PricePage() {
                             <td className="px-3 py-2.5 whitespace-nowrap">
                               <div className="text-ink-200 font-mono text-xs">{fmtInt(o.stock_units)}</div>
                               {o.stock_status && (
-                                <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${STOCK_TONE[o.stock_status] ?? "bg-ink-700 text-ink-300 border-ink-600"}`}>
+                                <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-sm border ${STOCK_TONE[o.stock_status] ?? "bg-ink-700 text-ink-300 border-ink-600"}`}>
                                   {o.stock_status}
                                 </span>
                               )}
@@ -308,7 +308,7 @@ function SummaryStats({ summary: s, offers }: { summary: PriceResponse["summary"
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "good"|"warn" }) {
   const cls = tone === "good" ? "text-emerald-300" : tone === "warn" ? "text-amber-300" : "text-ink-100";
   return (
-    <div className="p-3 rounded border border-ink-700 bg-ink-800">
+    <div className="p-3 rounded-sm border border-ink-700 bg-ink-800">
       <div className="text-[10px] text-ink-400">{label}</div>
       <div className={`text-sm font-mono font-bold ${cls}`}>{value}</div>
     </div>

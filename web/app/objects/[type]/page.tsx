@@ -141,7 +141,7 @@ export default function ObjectTypePage({ params }: { params: Promise<{ type: str
             <Link href="/" className="text-xs text-ink-400 hover:text-accent-300">홈</Link>
             <ChevronRight className="w-3 h-3 text-ink-600" />
             <span className="text-xs text-ink-200">{meta.ko}</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border ml-2"
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm border ml-2"
               style={{ borderColor: `${meta.color}60`, color: meta.color, backgroundColor: `${meta.color}14` }}>
               :{type}
             </span>
@@ -180,12 +180,12 @@ export default function ObjectTypePage({ params }: { params: Promise<{ type: str
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder={`${meta.ko} 필터…`}
-              className="w-full rounded bg-ink-800 border border-ink-700 text-xs pl-8 pr-3 py-1.5 text-ink-100 outline-none focus:border-accent-500 placeholder:text-ink-500"
+              className="w-full rounded-sm bg-ink-800 border border-ink-700 text-xs pl-8 pr-3 py-1.5 text-ink-100 outline-hidden focus:border-accent-500 placeholder:text-ink-500"
             />
           </div>
           <ul className="flex-1 overflow-y-auto">
             {listError && (
-              <li className="m-3 p-3 rounded text-xs bg-red-500/10 border border-red-500/30 text-red-300">{listError}</li>
+              <li className="m-3 p-3 rounded-sm text-xs bg-red-500/10 border border-red-500/30 text-red-300">{listError}</li>
             )}
             {!list && !listError && (
               <li className="text-xs text-ink-500 italic p-4">로딩 중…</li>
@@ -228,7 +228,7 @@ export default function ObjectTypePage({ params }: { params: Promise<{ type: str
             {detail ? (
               <>
                 <span
-                  className="px-1.5 py-0.5 rounded font-mono text-[10px] border"
+                  className="px-1.5 py-0.5 rounded-sm font-mono text-[10px] border"
                   style={{ borderColor: `${meta.color}60`, color: meta.color, backgroundColor: `${meta.color}14` }}
                 >
                   {detail.label}
@@ -236,7 +236,7 @@ export default function ObjectTypePage({ params }: { params: Promise<{ type: str
                 <span className="text-ink-100 font-semibold truncate">{detail.name}</span>
                 <span className="font-mono text-[10px] text-ink-500 truncate">{detail.id}</span>
                 {Object.entries(detail.neighbor_summary).slice(0, 6).map(([lbl, cnt]) => (
-                  <span key={lbl} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-ink-800 text-ink-300 border border-ink-700">
+                  <span key={lbl} className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-ink-800 text-ink-300 border border-ink-700">
                     {lbl} ·{cnt}
                   </span>
                 ))}
@@ -261,7 +261,7 @@ export default function ObjectTypePage({ params }: { params: Promise<{ type: str
             </div>
           )}
           {detailError && !detailLoading && (
-            <div className="m-3 p-3 rounded text-sm bg-red-500/10 border border-red-500/30 text-red-300">{detailError}</div>
+            <div className="m-3 p-3 rounded-sm text-sm bg-red-500/10 border border-red-500/30 text-red-300">{detailError}</div>
           )}
           {!detailLoading && detail && (
             <div className="flex-1 min-h-[600px]">
@@ -291,7 +291,7 @@ export default function ObjectTypePage({ params }: { params: Promise<{ type: str
                   {Object.keys(detail.neighbor_summary).length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {Object.entries(detail.neighbor_summary).map(([lbl, cnt]) => (
-                        <span key={lbl} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-ink-800 text-ink-300 border border-ink-700">
+                        <span key={lbl} className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-ink-800 text-ink-300 border border-ink-700">
                           {lbl} ·{cnt}
                         </span>
                       ))}
@@ -304,7 +304,7 @@ export default function ObjectTypePage({ params }: { params: Promise<{ type: str
                     {Object.entries(detail.properties).map(([k, v]) => (
                       <li key={k} className="text-xs">
                         <div className="text-ink-400 font-mono text-[10px]">{k}</div>
-                        <div className="text-ink-100 break-words">
+                        <div className="text-ink-100 wrap-break-word">
                           {typeof v === "object" && v !== null
                             ? JSON.stringify(v)
                             : String(v ?? "—")}

@@ -50,7 +50,7 @@ export default function StandardsPage() {
                 <td className="border border-ink-700/30 px-3 py-2 font-mono text-xs text-accent-300">{s.id}</td>
                 <td className="border border-ink-700/30 px-3 py-2 text-ink-100 font-medium">{s.name}</td>
                 <td className="border border-ink-700/30 px-3 py-2">
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-ink-700 text-ink-300">{s.domain}</span>
+                  <span className="px-2 py-0.5 rounded-sm text-[10px] bg-ink-700 text-ink-300">{s.domain}</span>
                 </td>
                 <td className="border border-ink-700/30 px-3 py-2 text-ink-300">{s.body}</td>
                 <td className="border border-ink-700/30 px-3 py-2 font-mono text-xs text-emerald-300">{s.applies_to}</td>

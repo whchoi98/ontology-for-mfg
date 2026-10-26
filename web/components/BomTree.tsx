@@ -13,7 +13,7 @@ function Row({ node, depth }: { node: BomNode; depth: number }) {
         {hasChildren ? (
           <button className="w-4 text-neutral-500" onClick={() => setOpen(!open)}>{open ? "▼" : "▶"}</button>
         ) : <span className="w-4" />}
-        <span className="px-2 py-0.5 rounded text-xs bg-neutral-100 mr-2">{node.level}</span>
+        <span className="px-2 py-0.5 rounded-sm text-xs bg-neutral-100 mr-2">{node.level}</span>
         <span>{node.name}</span>
         <span className="ml-2 text-xs text-neutral-400">{node.id}</span>
       </div>

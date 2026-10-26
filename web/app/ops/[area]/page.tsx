@@ -117,7 +117,7 @@ function GuardrailView() {
   useEffect(() => { load(); }, [minutes]);
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         <RefreshButton onClick={load} loading={loading} />
         <select
           value={minutes}
@@ -142,10 +142,10 @@ function GuardrailView() {
             {data.topics.map((t) => (
               <li
                 key={t.name}
-                className="p-3 rounded border border-ink-700 bg-ink-800"
+                className="p-3 rounded-sm border border-ink-700 bg-ink-800"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-rose-500/40 bg-rose-500/10 text-rose-200">
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm border border-rose-500/40 bg-rose-500/10 text-rose-200">
                     {t.name}
                   </span>
                   <span className="text-sm font-semibold text-ink-100">{t.ko}</span>
@@ -168,7 +168,7 @@ function GuardrailView() {
               {data.events.map((e, i) => (
                 <li
                   key={i}
-                  className="p-2.5 rounded border border-ink-700 bg-ink-800 font-mono text-xs"
+                  className="p-2.5 rounded-sm border border-ink-700 bg-ink-800 font-mono text-xs"
                 >
                   <span className="text-ink-400 mr-2">
                     {new Date(e.timestamp).toISOString().slice(11, 19)}
@@ -229,7 +229,7 @@ function MemoryView() {
           )}
           <ul className="space-y-2">
             {data.events.map((e, i) => (
-              <li key={i} className="p-3 rounded border border-ink-700 bg-ink-800">
+              <li key={i} className="p-3 rounded-sm border border-ink-700 bg-ink-800">
                 <div className="flex items-center gap-2 text-[10px] font-mono text-ink-400 mb-1">
                   <span>{e.role ?? "(role?)"}</span>
                   <span>·</span>
@@ -300,7 +300,7 @@ function EvalView() {
           {data.rows.map((r, i) => (
             <li
               key={i}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded border border-ink-700 bg-ink-800"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-sm border border-ink-700 bg-ink-800"
             >
               {r.error ? (
                 <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -350,20 +350,20 @@ function TraceView() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="도구명 / 세션 / 액터 필터"
-          className="rounded bg-ink-800 border border-ink-700 px-3 py-1.5 text-xs text-ink-100 outline-none focus:border-accent-500 placeholder:text-ink-500 flex-1 max-w-xs"
+          className="rounded-sm bg-ink-800 border border-ink-700 px-3 py-1.5 text-xs text-ink-100 outline-hidden focus:border-accent-500 placeholder:text-ink-500 flex-1 max-w-xs"
         />
         <span className="text-xs text-ink-400 ml-auto">
           {filtered.length} / {data.total} 이벤트
         </span>
       </div>
       {data.events.length === 0 && (
-        <div className="p-4 rounded border border-dashed border-ink-700 text-xs text-ink-500 italic text-center">
+        <div className="p-4 rounded-sm border border-dashed border-ink-700 text-xs text-ink-500 italic text-center">
           트레이스가 없습니다 — /chat에서 메시지를 보내면 도구 호출이 여기에 기록됩니다.
         </div>
       )}
       <ul className="space-y-2">
         {filtered.map((e, i) => (
-          <li key={i} className="p-3 rounded border border-ink-700 bg-ink-800">
+          <li key={i} className="p-3 rounded-sm border border-ink-700 bg-ink-800">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <Wrench className="w-3.5 h-3.5 text-accent-300 shrink-0" />
               <span className="font-mono text-xs font-semibold text-accent-200">{e.tool}</span>

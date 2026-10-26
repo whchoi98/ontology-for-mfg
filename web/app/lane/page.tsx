@@ -238,14 +238,14 @@ export default function LanePage() {
           </div>
           <button
             onClick={downloadReroutePdf}
-            className="flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-orange-400/40 text-orange-200 hover:bg-orange-500/15"
+            className="flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded-sm border border-orange-400/40 text-orange-200 hover:bg-orange-500/15"
             title="Reroute 결과를 PDF로 다운로드"
           >
             <FileDown className="w-3 h-3" /> PDF
           </button>
           <button
             onClick={clearReroute}
-            className="flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-orange-400/40 text-orange-200 hover:bg-orange-500/15"
+            className="flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded-sm border border-orange-400/40 text-orange-200 hover:bg-orange-500/15"
           >
             <RotateCcw className="w-3 h-3" /> RESET
           </button>
@@ -359,7 +359,7 @@ export default function LanePage() {
                   <span className="text-[10px] font-mono text-ink-300 w-12 shrink-0">
                     {REGION_LABEL_SHORT[b.code] ?? b.code}
                   </span>
-                  <div className="relative flex-1 h-3 bg-ink-800 rounded overflow-hidden">
+                  <div className="relative flex-1 h-3 bg-ink-800 rounded-sm overflow-hidden">
                     <div className="absolute inset-y-0 left-0 bg-accent-500/70" style={{ width: `${b.pct}%` }} />
                   </div>
                   <span className="text-[10px] font-mono text-ink-400 w-7 text-right">{b.n}</span>
@@ -453,7 +453,7 @@ function FilterChip({ children, active, tone, onClick }: {
     <button
       onClick={onClick}
       className={[
-        "text-[10px] font-mono px-2 py-1 rounded border transition",
+        "text-[10px] font-mono px-2 py-1 rounded-sm border transition",
         active ? (tone ?? "border-accent-500 bg-accent-500/20 text-accent-100") : "border-ink-700 bg-ink-800 text-ink-400 hover:border-ink-500",
       ].join(" ")}
     >

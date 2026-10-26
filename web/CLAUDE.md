@@ -1,6 +1,6 @@
 # web/CLAUDE.md
 
-Next.js 16 App Router frontend (React 19, Turbopack builds). Dark-theme
+Next.js 16 App Router frontend (React 19, Turbopack builds, Tailwind CSS 4). Dark-theme
 dashboard for the 12 manufacturing scenarios + 22-class object explorer +
 5-area ops console + code knowledge graph view + global "Manny" floating
 chatbot.
@@ -12,6 +12,8 @@ web/
 ├── app/                       Next.js App Router
 │   ├── page.tsx               Home (hero + 12-scenario card grid + 22-class object grid)
 │   ├── layout.tsx             Server-side root layout — delegates chrome to LayoutShell
+│   ├── globals.css            Tailwind 4 entry: @import + @source list + @theme (brand/ink/accent/wow, font, pulse-soft) + .chat-markdown
+│   ├── tailwind-v3-compat.css v3 look on v4: v3 palette, v3 text line-heights, Preflight border/placeholder/cursor
 │   ├── manny/                 Chat-only popup surface (loaded into FloatingChat's popup/iframe)
 │   ├── chat/                  B — Bedrock chat (SSE phase chips + markdown + PDF + follow-up chips)
 │   ├── search/                A — hybrid search results + Cytoscape subgraph
@@ -59,6 +61,7 @@ web/
 ├── Dockerfile                 Next standalone runtime; copies public/ explicitly
 ├── eslint.config.mjs          ESLint 9 flat config (eslint-config-next 16) — replaces `next lint`
 ├── vitest.config.mts          Vitest 4 / Vite 8 (Oxc JSX transform, `@/` alias)
+├── postcss.config.js          `@tailwindcss/postcss` only (no autoprefixer — v4 prefixes itself)
 └── next.config.js             output: "standalone", reactStrictMode (no webpack() hook)
 ```
 
@@ -164,9 +167,36 @@ web/
   `immutability`) are downgraded to warnings until the fetch-in-effect code is
   refactored. Stay on ESLint 9 — several bundled plugins don't list ESLint 10
   as a peer yet, which would break plain `npm ci`.
-- **Known audit residue** — `npm audit` reports 3 moderate advisories in
-  Tailwind 3's `postcss-nested` → `postcss-selector-parser` (build-time only,
-  our own CSS). Fixed only by Tailwind 4 (out of scope for now).
+- **Tailwind 4 is configured in CSS, not JS** — there is no
+  `tailwind.config.*`. Theme tokens live in `@theme` in `app/globals.css`
+  (custom colors → `--color-ink-800` etc.; font → `--font-sans`; animation →
+  `--animate-pulse-soft` + `@keyframes`). The import is
+  `@import 'tailwindcss' source(none)` plus explicit `@source` lines for
+  `app/`, `components/`, `lib/`. Automatic detection would otherwise scan all
+  of `web/` (incl. `public/codegraph/graph.html`). Add an `@source` line if
+  class names move to a new directory. Class names must stay complete static
+  strings (maps of full class strings are fine; `` `bg-${tone}` `` is not).
+- **`tailwind-v3-compat.css` keeps the v3 look** — it pins the v3 hex
+  palette (v4's OKLCH palette renders differently), the v3 absolute `text-*`
+  line-heights (v4's unitless ratios change the line box of children that
+  only set a font size, e.g. `text-[10px]` inside `text-xs`), and the v3
+  Preflight defaults: border `gray-200`, placeholder `gray-400`,
+  `cursor: pointer` on buttons. Remove a block only when deliberately adopting
+  the v4 default.
+- **v4 class-name gotchas** — gradients use `bg-linear-to-*/srgb` (bare
+  `bg-linear-to-*` interpolates in OKLab, unlike v3). v3's `rounded` /
+  `shadow` / `blur` / `outline-none` / `ring` are spelled `rounded-sm` /
+  `shadow-sm` / `blur-sm` / `outline-hidden` / `ring-3` in v4, and each old
+  `-sm` step is now `-xs`. A bare v4 `ring` is 1px and `currentColor`, so
+  always pair a ring width with a ring color. `space-y-*` now puts
+  `margin-bottom` on all but the last child with zero specificity, so a child's
+  own `mb-*` / `mt-*` overrides the spacing. v3 did the opposite. Don't put
+  vertical margins on direct children of `space-y-*`. v4 Preflight makes
+  `input` / `select` / `textarea` backgrounds transparent (v3: UA white). Every
+  control here sets a `bg-ink-*` class, and new ones should too. `hover:` only applies on
+  devices that support hover (`@media (hover: hover)`). `@tailwindcss/upgrade`
+  also rewrites matching words in prose strings (it changed "ring buffer" to
+  "ring-3 buffer" in `GuidedTour.tsx`), so review its diff if you re-run it.
 - **`/manny` must stay chrome-less** — `LayoutShell` recognizes the path
   and renders only `{children}`. If you add a sidebar to it, the iframe
   modal will show a nested sidebar inside the modal frame.

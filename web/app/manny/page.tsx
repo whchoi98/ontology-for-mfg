@@ -22,7 +22,7 @@ import { MANNY_CLOSE_MESSAGE } from '@/lib/manny-bridge';
 import { sseErrorText, stopReasonNotice } from '@/lib/sse-events';
 import type { Persona } from '@/lib/types';
 
-const MFG_BRAND_GRADIENT = 'bg-gradient-to-br from-accent-700 via-accent-600 to-accent-400';
+const MFG_BRAND_GRADIENT = 'bg-linear-to-br/srgb from-accent-700 via-accent-600 to-accent-400';
 
 const PERSONA_LABEL: Record<Persona, string> = {
   buyer: '구매', engineer: 'R&D', quality: '품질', scm: 'SCM', plant: '생산',
@@ -196,7 +196,7 @@ export default function MannyPopupPage() {
   return (
     <div className="h-screen w-screen flex flex-col bg-ink-950">
       {/* Header */}
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-accent-500/30 bg-gradient-to-r from-accent-700/15 via-accent-600/5 to-transparent shrink-0">
+      <header className="flex items-center gap-3 px-4 py-3 border-b border-accent-500/30 bg-linear-to-r/srgb from-accent-700/15 via-accent-600/5 to-transparent shrink-0">
         <div className={`w-9 h-9 rounded-full ${MFG_BRAND_GRADIENT} flex items-center justify-center shadow-md shrink-0`}>
           <Bot className="w-5 h-5 text-white" strokeWidth={2.5} />
         </div>
@@ -212,7 +212,7 @@ export default function MannyPopupPage() {
           <button
             type="button"
             onClick={reset}
-            className="text-[10px] text-ink-400 hover:text-ink-200 flex items-center gap-1 px-2 py-1 rounded hover:bg-ink-800"
+            className="text-[10px] text-ink-400 hover:text-ink-200 flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-ink-800"
             title="새 세션"
           >
             <RotateCcw className="w-3 h-3" /> 새로
@@ -229,7 +229,7 @@ export default function MannyPopupPage() {
             type="button"
             onClick={() => setActive(p)}
             className={[
-              'text-[10px] font-mono px-2 py-1 rounded border transition',
+              'text-[10px] font-mono px-2 py-1 rounded-sm border transition',
               active === p
                 ? PERSONA_TONE[p]
                 : 'border-ink-700 bg-ink-800 text-ink-400 hover:border-ink-600 hover:text-ink-200',
@@ -244,7 +244,7 @@ export default function MannyPopupPage() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
         {messages.length === 0 && (
           <>
-            <div className="p-4 rounded-lg bg-gradient-to-r from-accent-700/20 to-accent-500/10 border border-accent-500/30 mb-3">
+            <div className="p-4 rounded-lg bg-linear-to-r/srgb from-accent-700/20 to-accent-500/10 border border-accent-500/30 mb-3">
               <div className="text-base font-semibold text-accent-200 mb-1">
                 안녕하세요, Manny예요 🔩
               </div>
@@ -254,7 +254,7 @@ export default function MannyPopupPage() {
                 상단 부서 칩으로 어조와 KPI를 바꿀 수 있습니다.
               </div>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent-300 font-semibold mb-1.5">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent-300 font-semibold">
               <Sparkles className="w-3 h-3" /> Manny가 추천하는 질문
             </div>
             <div className="flex flex-col gap-1.5">
@@ -289,7 +289,7 @@ export default function MannyPopupPage() {
               <MarkdownView text={m.text || (streaming && !m.error ? '…' : '')} />
             )}
             {m.error && (
-              <div role="alert" className="mt-2 flex items-start gap-1.5 text-xs rounded border border-red-500/30 bg-red-500/10 text-red-300 px-2.5 py-1.5 whitespace-pre-wrap">
+              <div role="alert" className="mt-2 flex items-start gap-1.5 text-xs rounded-sm border border-red-500/30 bg-red-500/10 text-red-300 px-2.5 py-1.5 whitespace-pre-wrap">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span>{m.error}</span>
               </div>
@@ -334,7 +334,7 @@ export default function MannyPopupPage() {
           onChange={(e) => setInput(e.target.value)}
           disabled={streaming}
           placeholder="Manny에게 자연어로 질문하세요"
-          className="flex-1 bg-ink-800 border border-ink-700 rounded-md px-3 py-2 text-sm text-ink-100 outline-none focus:border-accent-500 placeholder:text-ink-500 disabled:opacity-50"
+          className="flex-1 bg-ink-800 border border-ink-700 rounded-md px-3 py-2 text-sm text-ink-100 outline-hidden focus:border-accent-500 placeholder:text-ink-500 disabled:opacity-50"
           autoFocus
         />
         <button

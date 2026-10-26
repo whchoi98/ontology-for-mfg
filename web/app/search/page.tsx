@@ -128,7 +128,7 @@ export default function SearchPage() {
                     onClick={() => { setActive(p.persona); setQ(p.label); doSearch(p.label, p.persona); }}
                     className="group flex items-start gap-2 text-left px-3 py-2.5 rounded-lg border border-ink-700 bg-ink-900 hover:border-accent-500/60 hover:bg-ink-800 transition disabled:opacity-50"
                   >
-                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 mt-0.5 ${PERSONA_TONE[p.persona]}`}>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-sm border shrink-0 mt-0.5 ${PERSONA_TONE[p.persona]}`}>
                       {PERSONA_LABEL[p.persona]}
                     </span>
                     <span className="text-sm text-ink-200 leading-relaxed group-hover:text-accent-200">
@@ -148,7 +148,7 @@ export default function SearchPage() {
               <div className="relative flex-1">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-500" />
                 <input
-                  className="w-full bg-ink-800 border border-ink-700 rounded-md pl-10 pr-3 py-2.5 text-sm text-ink-100 outline-none focus:border-accent-500 placeholder:text-ink-500"
+                  className="w-full bg-ink-800 border border-ink-700 rounded-md pl-10 pr-3 py-2.5 text-sm text-ink-100 outline-hidden focus:border-accent-500 placeholder:text-ink-500"
                   placeholder="예: 차량용 -40°C 보장 BGA 패키지"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
@@ -176,13 +176,13 @@ export default function SearchPage() {
               </div>
               <ol className="flex flex-wrap gap-2">
                 {phases.map((p, i) => (
-                  <li key={i} className={`flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded border ${p.tone}`}>
+                  <li key={i} className={`flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-sm border ${p.tone}`}>
                     <span className="text-[9px] opacity-60">{i + 1}.</span>
                     <span className="font-semibold">{p.label}</span>
                   </li>
                 ))}
                 {loading && (
-                  <li className="text-[11px] font-mono px-2 py-1 rounded border border-ink-600/30 bg-ink-800/50 text-ink-400 animate-pulse">
+                  <li className="text-[11px] font-mono px-2 py-1 rounded-sm border border-ink-600/30 bg-ink-800/50 text-ink-400 animate-pulse">
                     다음 단계…
                   </li>
                 )}
@@ -197,7 +197,7 @@ export default function SearchPage() {
                 <div className="flex items-center gap-2 mt-1 text-xs text-ink-400">
                   <span className="font-mono">{String(h.id)}</span>
                   {typeof h.rerank_score === "number" && (
-                    <span className="px-1.5 py-0.5 rounded bg-accent-500/15 text-accent-300 font-mono">
+                    <span className="px-1.5 py-0.5 rounded-sm bg-accent-500/15 text-accent-300 font-mono">
                       score {h.rerank_score.toFixed(3)}
                     </span>
                   )}

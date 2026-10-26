@@ -105,8 +105,8 @@ export default function SubstitutePage() {
               <div className="text-[10px] uppercase tracking-wider text-ink-400 font-semibold">추천</div>
               {SAMPLES.map((s, i) => (
                 <button key={i} onClick={() => { setActive(s.persona); setSelected(s.cid); }}
-                  className="w-full text-left px-2 py-1.5 rounded border border-ink-700 bg-ink-800 hover:border-cyan-500/60 transition flex items-center gap-2">
-                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${PERSONA_TONE[s.persona]}`}>{PERSONA_LABEL[s.persona]}</span>
+                  className="w-full text-left px-2 py-1.5 rounded-sm border border-ink-700 bg-ink-800 hover:border-cyan-500/60 transition flex items-center gap-2">
+                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-sm border shrink-0 ${PERSONA_TONE[s.persona]}`}>{PERSONA_LABEL[s.persona]}</span>
                   <span className="text-[11px] text-ink-200 truncate">{s.label}</span>
                 </button>
               ))}
@@ -115,7 +115,7 @@ export default function SubstitutePage() {
           <div className="px-3 py-2 border-b border-ink-700 relative">
             <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-500" />
             <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="부품 필터"
-              className="w-full rounded bg-ink-800 border border-ink-700 text-xs pl-8 pr-3 py-1.5 text-ink-100 outline-none focus:border-cyan-500 placeholder:text-ink-500" />
+              className="w-full rounded-sm bg-ink-800 border border-ink-700 text-xs pl-8 pr-3 py-1.5 text-ink-100 outline-hidden focus:border-cyan-500 placeholder:text-ink-500" />
           </div>
           <div className="px-4 py-2 border-b border-ink-700 flex items-center gap-2 text-xs">
             <input type="checkbox" id="same-supplier" checked={sameSupplierOk}
@@ -156,7 +156,7 @@ export default function SubstitutePage() {
           {loading && <div className="mx-6 text-sm text-ink-400">분석 중…</div>}
           {result && (
             <div className="px-6 pb-6 space-y-5">
-              <article className="p-5 rounded-lg border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-cyan-500/0">
+              <article className="p-5 rounded-lg border border-cyan-500/30 bg-linear-to-br/srgb from-cyan-500/10 to-cyan-500/0">
                 <div className="text-[10px] uppercase tracking-wider text-cyan-300 font-semibold mb-1">Original</div>
                 <h2 className="text-lg font-bold text-ink-50">{result.original.name}</h2>
                 <div className="flex flex-wrap gap-2 text-[10px] font-mono text-ink-300 mt-2">
@@ -172,7 +172,7 @@ export default function SubstitutePage() {
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {result.original.standards.map((s) => (
-                    <span key={s} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">{s}</span>
+                    <span key={s} className="text-[9px] font-mono px-1.5 py-0.5 rounded-sm bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">{s}</span>
                   ))}
                 </div>
               </article>
@@ -198,7 +198,7 @@ export default function SubstitutePage() {
                           <div className="text-sm text-ink-100 font-medium truncate">{c.name}</div>
                           <div className="text-[10px] font-mono text-ink-500 mt-0.5">{c.id}</div>
                         </div>
-                        <span className="text-[10px] font-mono px-2 py-1 rounded bg-cyan-500/15 text-cyan-200 shrink-0 font-bold">score {c.score}</span>
+                        <span className="text-[10px] font-mono px-2 py-1 rounded-sm bg-cyan-500/15 text-cyan-200 shrink-0 font-bold">score {c.score}</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5 mt-2 items-center">
                         <span className="text-[10px] font-mono text-ink-400"><Tag className="inline w-3 h-3 mr-0.5" />{c.supplier_name}</span>
@@ -219,14 +219,14 @@ export default function SubstitutePage() {
                           )}
                         </span>
                         {c.shared_standards.length > 0 && (
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
                             <ShieldCheck className="inline w-3 h-3 mr-0.5" />표준 +{c.shared_standards.length}
                           </span>
                         )}
-                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-sm border ${
                           c.rohs_compliant ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" : "bg-rose-500/10 text-rose-300 border-rose-500/30"
                         }`}>RoHS {c.rohs_compliant ? "통과" : "위반"}</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-ink-700 text-ink-300">재고: {c.stock_status}</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-ink-700 text-ink-300">재고: {c.stock_status}</span>
                       </div>
                       {c.shared_standards.length > 0 && (
                         <div className="text-[10px] text-ink-400 mt-2">공통 표준: <span className="font-mono">{c.shared_standards.join(", ")}</span></div>
@@ -261,7 +261,7 @@ export default function SubstitutePage() {
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "good"|"warn" }) {
   const cls = tone === "good" ? "text-emerald-300" : tone === "warn" ? "text-amber-300" : "text-ink-100";
   return (
-    <div className="p-3 rounded border border-ink-700 bg-ink-800">
+    <div className="p-3 rounded-sm border border-ink-700 bg-ink-800">
       <div className="text-[10px] text-ink-400">{label}</div>
       <div className={`text-sm font-mono font-bold ${cls}`}>{value}</div>
     </div>

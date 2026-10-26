@@ -169,10 +169,10 @@ export default function ValidationPage() {
             </p>
           </div>
           <div className="flex items-center gap-3 text-xs">
-            <span className="px-2.5 py-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 font-mono">
+            <span className="px-2.5 py-1 rounded-sm border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 font-mono">
               ✓ {passes}
             </span>
-            <span className="px-2.5 py-1 rounded border border-rose-500/40 bg-rose-500/10 text-rose-200 font-mono">
+            <span className="px-2.5 py-1 rounded-sm border border-rose-500/40 bg-rose-500/10 text-rose-200 font-mono">
               ✗ {fails}
             </span>
             <button

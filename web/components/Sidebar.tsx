@@ -109,7 +109,7 @@ export function Sidebar() {
     <aside className="w-72 shrink-0 bg-ink-900 border-r border-ink-700 flex flex-col">
       <div className="h-14 flex items-center justify-between px-5 border-b border-ink-700 gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-7 h-7 shrink-0 rounded-md bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center">
+          <div className="w-7 h-7 shrink-0 rounded-md bg-linear-to-br/srgb from-accent-400 to-accent-600 flex items-center justify-center">
             <Network className="w-4 h-4 text-ink-950" />
           </div>
           <div className="min-w-0">
@@ -135,7 +135,7 @@ export function Sidebar() {
                     <Link
                       href={item.href}
                       className={[
-                        'flex items-center gap-2.5 mx-2 px-3 py-2 rounded text-sm transition-colors',
+                        'flex items-center gap-2.5 mx-2 px-3 py-2 rounded-sm text-sm transition-colors',
                         active
                           ? 'bg-accent-500/10 text-accent-200 ring-1 ring-accent-500/30'
                           : 'text-ink-200 hover:bg-ink-800 hover:text-ink-100',
@@ -145,7 +145,7 @@ export function Sidebar() {
                       <span className="flex-1">{item.label}</span>
                       {item.badge && (
                         <span className={[
-                          'text-[10px] font-mono px-1.5 py-0.5 rounded',
+                          'text-[10px] font-mono px-1.5 py-0.5 rounded-sm',
                           active ? 'bg-accent-500/20 text-accent-300' : 'bg-ink-700 text-ink-300',
                         ].join(' ')}>
                           {item.badge}

@@ -1,6 +1,60 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+  Tailwind CSS 4 — CSS-first config (replaces tailwind.config.ts).
+
+  source(none) turns off automatic source detection (which would scan the
+  whole web/ tree, incl. public/codegraph/graph.html and __tests__/) and the
+  @source lines below list exactly what is scanned for class names.
+*/
+@import 'tailwindcss' source(none);
+@import './tailwind-v3-compat.css';
+
+@source '../app';
+@source '../components';
+@source '../lib';
+
+@theme {
+  --font-sans: var(--font-pretendard), system-ui, sans-serif;
+
+  --color-brand-50: #f5f7fb;
+  --color-brand-100: #e8edf6;
+  --color-brand-500: #3b5bdb;
+  --color-brand-600: #2f49b2;
+  --color-brand-900: #1a2447;
+
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+  --color-ink-950: #020617;
+
+  --color-accent-100: #dbeafe;
+  --color-accent-200: #bfdbfe;
+  --color-accent-300: #93c5fd;
+  --color-accent-400: #60a5fa;
+  --color-accent-500: #3b82f6;
+  --color-accent-600: #2563eb;
+  --color-accent-700: #1d4ed8;
+
+  --color-wow: #ff6b35;
+
+  --animate-pulse-soft: pulse_soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  @keyframes pulse_soft {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+}
 
 @layer base {
   body { @apply bg-ink-950 text-ink-200; }

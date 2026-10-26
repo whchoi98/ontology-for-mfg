@@ -37,7 +37,7 @@ const PERSONA_LABEL: Record<Persona, string> = {
   buyer: '구매', engineer: 'R&D', quality: '품질', scm: 'SCM', plant: '생산',
 };
 
-const MFG_BRAND_GRADIENT = 'bg-gradient-to-br from-accent-700 via-accent-600 to-accent-400';
+const MFG_BRAND_GRADIENT = 'bg-linear-to-br/srgb from-accent-700 via-accent-600 to-accent-400';
 
 /** Named window target — reused across clicks instead of `_blank`. */
 const MANNY_WINDOW_NAME = 'manny';
@@ -136,7 +136,7 @@ export default function FloatingChat() {
         <div
           hidden={!modalOpen}
           className={[
-            'fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm',
+            'fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-xs',
             modalOpen ? 'flex' : 'hidden',
           ].join(' ')}
           onClick={() => setModalOpen(false)}
@@ -148,7 +148,7 @@ export default function FloatingChat() {
             className="relative w-[480px] h-[760px] max-h-[90vh] bg-ink-900 border border-accent-500/40 rounded-lg shadow-2xl shadow-blue-900/60 overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-accent-500/30 bg-gradient-to-r from-accent-700/30 to-accent-600/15 shrink-0">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-accent-500/30 bg-linear-to-r/srgb from-accent-700/30 to-accent-600/15 shrink-0">
               <div className="flex items-center gap-2">
                 <Bot className="w-4 h-4 text-accent-300" strokeWidth={2.5} />
                 <span className="text-xs font-bold text-ink-50">
@@ -158,7 +158,7 @@ export default function FloatingChat() {
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="p-1 rounded hover:bg-ink-800 text-ink-400 hover:text-ink-200"
+                className="p-1 rounded-sm hover:bg-ink-800 text-ink-400 hover:text-ink-200"
                 title="닫기 (ESC)"
                 aria-label="닫기"
               >

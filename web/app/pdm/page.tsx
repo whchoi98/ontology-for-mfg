@@ -39,7 +39,7 @@ export default function PdmPage() {
         <p className="text-sm text-ink-400 mb-4">공장 IoT 텔레메트리 + 예지 보전 알람 + 정비 이벤트 추천</p>
         <form onSubmit={submit} className="flex gap-2 mb-6">
           <select
-            className="bg-ink-800 border border-ink-700 rounded-md px-3 py-2.5 text-sm text-ink-100 outline-none focus:border-accent-500"
+            className="bg-ink-800 border border-ink-700 rounded-md px-3 py-2.5 text-sm text-ink-100 outline-hidden focus:border-accent-500"
             value={plantId}
             onChange={(e) => setPlantId(e.target.value)}
           >
@@ -67,7 +67,7 @@ export default function PdmPage() {
             <ul className="space-y-1.5">
               {alerts.map((a, i) => (
                 <li key={i} className="text-sm text-red-200">
-                  <span className="font-mono text-[10px] bg-red-500/20 px-1.5 py-0.5 rounded mr-2">{a.severity ?? "HIGH"}</span>
+                  <span className="font-mono text-[10px] bg-red-500/20 px-1.5 py-0.5 rounded-sm mr-2">{a.severity ?? "HIGH"}</span>
                   {a.sensor_id}: {a.message}
                 </li>
               ))}
@@ -95,7 +95,7 @@ export default function PdmPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={[
-                        "px-2 py-0.5 rounded text-xs font-medium",
+                        "px-2 py-0.5 rounded-sm text-xs font-medium",
                         s.status === "OK" ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300",
                       ].join(" ")}>
                         {s.status ?? "-"}

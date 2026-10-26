@@ -57,7 +57,7 @@ export default function SchemaPage() {
         </p>
 
         <input
-          className="w-full max-w-md bg-ink-800 border border-ink-700 rounded-md px-3 py-2 text-sm text-ink-100 outline-none focus:border-accent-500 placeholder:text-ink-500 mb-6"
+          className="w-full max-w-md bg-ink-800 border border-ink-700 rounded-md px-3 py-2 text-sm text-ink-100 outline-hidden focus:border-accent-500 placeholder:text-ink-500 mb-6"
           placeholder="클래스 필터..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}

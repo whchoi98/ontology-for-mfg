@@ -98,7 +98,7 @@ export default function CodeGraphPage() {
           <div className="flex items-center gap-2">
             <Code2 className="w-4 h-4 text-accent-400" />
             <h1 className="text-base font-bold text-ink-50">코드 지식 그래프</h1>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-200">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm border border-emerald-500/40 bg-emerald-500/10 text-emerald-200">
               graphify · AST-only
             </span>
           </div>
@@ -108,7 +108,7 @@ export default function CodeGraphPage() {
               {stats.map(([k, v]) => (
                 <span
                   key={k}
-                  className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-ink-700 bg-ink-900 text-ink-300"
+                  className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm border border-ink-700 bg-ink-900 text-ink-300"
                 >
                   <span className="text-ink-500">{k}</span> <span className="text-ink-100">{v}</span>
                 </span>

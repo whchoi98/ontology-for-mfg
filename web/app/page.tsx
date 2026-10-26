@@ -143,7 +143,7 @@ export default function HomePage() {
               <Link
                 key={s.href}
                 href={s.href}
-                className={`group relative rounded-lg border bg-gradient-to-br ${CARD_COLOR[s.color]} bg-ink-800 p-5 hover:bg-ink-700/60 transition`}
+                className={`group relative rounded-lg border bg-linear-to-br/srgb ${CARD_COLOR[s.color]} bg-ink-800 p-5 hover:bg-ink-700/60 transition`}
               >
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-10 h-10 rounded-md bg-ink-900 border border-ink-700 flex items-center justify-center shrink-0">
@@ -187,7 +187,7 @@ export default function HomePage() {
                       className="group rounded-md bg-ink-800 border border-ink-700 px-3 py-2.5 flex items-center gap-2 hover:border-accent-500/60 hover:bg-ink-700/40 transition"
                     >
                       <div
-                        className="w-7 h-7 rounded flex items-center justify-center shrink-0"
+                        className="w-7 h-7 rounded-sm flex items-center justify-center shrink-0"
                         style={{ backgroundColor: `${t.color}22`, border: `1px solid ${t.color}55` }}
                       >
                         <Icon className="w-3.5 h-3.5" style={{ color: t.color }} />
