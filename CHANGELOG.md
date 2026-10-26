@@ -1,5 +1,74 @@
 # CHANGELOG.md
 
+## 0.7.0 — 2026-10-26 (multi-turn chat · immutable image tags · Tailwind CSS 4)
+
+The chat agent now keeps the conversation, releases are immutable
+`:<git sha>` images rolled out through CloudFormation, and the web moves to
+Tailwind CSS 4 with the v3 look preserved.
+
+### Highlights
+- `/chat` and Manny answer follow-ups in context ("두 번째 협력사는?") —
+  client-held history, replayed as text, guardrail-screened (ADR-012)
+- ECR tags are immutable; the running tag per service lives in SSM and is
+  resolved by ComputeStack on every deploy; `scripts/deploy.sh` builds,
+  pushes, rolls out and restores SSM on failure; circuit-breaker rollback
+- Tailwind 3.4 → 4.3.3: `npm audit --omit=dev` 3 moderate → **0**
+
+### Chat context (`api/services/agent.py`, `web/lib/chat-history.ts`)
+- `ChatRequest.history` (earlier turns, oldest first). The web sends only
+  answers that stopped with `end_turn` — blocked, failed, cancelled or
+  truncated turns are never replayed — at most 6 pairs.
+- `agent.history_messages` keeps complete user→assistant pairs (Converse
+  needs strict alternation), clips each side to 4K / 6K chars, keeps the
+  newest 6 pairs within 24K chars. No reasoning blocks across turns: a
+  thinking block is bound to the prefix that produced it, and a persona
+  switch changes the system prompt.
+- The replayed questions get their own INPUT guardrail check, concurrent with
+  the current question's — a forged history is dropped (log event), the clean
+  question is still answered; the current question's verdict is unchanged.
+- System prompt: earlier answers came from tool results that are not
+  replayed. Without it Sonnet 5.5 disowned its own previous answer as
+  ungrounded (measured live); with it, it resolves references from them.
+- UI: 「새 대화」 on `/chat` (Manny's 「새로」 already existed), a context hint
+  under the input, and the model labels now say Sonnet 5.5 (8D: Haiku 4.5).
+
+### Deploy / infra (`infra-cdk/lib/compute-stack.ts`, `scripts/deploy.sh`)
+- ECR `IMMUTABLE` + lifecycle (untagged after 14 days, newest 30 kept).
+- Task definitions read `/ontology-mfg-dev/image-tag/{api,web}` via
+  `valueForStringParameter`; no `:latest` anywhere (Jest).
+- ECS deployment circuit breaker with rollback, set on the L1 — the L2 prop
+  adds `DeploymentController`, which would replace the fixed-name services.
+  `minHealthyPercent 100`: no capacity dip during rollouts.
+- `scripts/deploy.sh [--only api|web] [--tag <tag>]`: tag = 12-char git SHA
+  (dirty tree refused), builds only missing tags, `cdk deploy compute
+  --exclusively --force`, restores SSM on failure, prints tag vs running
+  digests. Rollback = `--tag <previous sha>`.
+
+### Web (Tailwind CSS 4)
+- `tailwindcss` 4.3.3 + `@tailwindcss/postcss`; autoprefixer removed;
+  `tailwind.config.ts` → `@theme` in `app/globals.css` with explicit
+  `@source` (app / components / lib).
+- `app/tailwind-v3-compat.css` keeps the v3 palette, text line-heights and
+  Preflight defaults; gradients use `bg-linear-to-*/srgb`; two `space-y`
+  children lost a margin that v4 would now honour.
+- Before/after screenshots (Chromium, 1440 px) match up to ≤ 2/255 alpha
+  rounding; computed styles of every element on 24 routes, incl. forced
+  hover / focus: 0 differences.
+
+### Fixes
+- CI: unit suites run with dummy AWS credentials (autouse fixture) —
+  `test_upload` signed with real credentials, passing on the dev EC2 and
+  failing in CI.
+
+### Known issues
+- `memory_save` writes to a DynamoDB table that does not exist and the API
+  role has no DynamoDB permission (pre-existing; see `api/CLAUDE.md`).
+- `/insights` copy still advertises "Sonnet 4.6 스트리밍", but the endpoint
+  is a templated JSON API without an LLM.
+
+### Tests
+- pytest 372 → **379**, web vitest 63 → **71**, cdk Jest 38 → **41**.
+
 ## 0.6.0 — 2026-10-24 (Sonnet 5.5 · real guardrails · PyJWT auth · registry-driven graph)
 
 Hardening and modernisation release. The chat agent moves to Claude Sonnet
