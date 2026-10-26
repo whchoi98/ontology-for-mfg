@@ -1,7 +1,8 @@
 # scripts/CLAUDE.md
 
-One-shot Python utilities. Currently houses the graphify community
-labeller; expand here for any analytical / one-time / migration helpers.
+One-shot Python utilities: the graphify community labeller and the
+guardrail false-positive probe. Expand here for any analytical / one-time /
+migration helpers.
 
 ## Files
 
@@ -12,10 +13,21 @@ labeller; expand here for any analytical / one-time / migration helpers.
   - `web/public/codegraph/graph.html`  (RAW_NODES `community_name` + LEGEND `label`)
   - `web/public/codegraph/GRAPH_REPORT.md`  (### headings + nav links)
   - `web/public/codegraph/community_labels.json`  (audit-friendly id→name map)
+- `guardrail_probe.py` — Measures the *deployed* Bedrock guardrail
+  (`BEDROCK_GUARDRAIL_ID`, default `356xcbgyqcpq`; `BEDROCK_GUARDRAIL_VERSION`,
+  default `DRAFT`; `AWS_REGION`) with `ApplyGuardrail(source=INPUT)`:
+  - **must not block** — every demo sample prompt (parsed from
+    `web/app/chat/page.tsx` `CHAT_SAMPLES` and `web/app/manny/page.tsx`
+    `SAMPLE_QUERIES_BY_PERSONA`) + 12 ordinary compliance questions
+    (`COMPLIANCE_QS`) — 43 prompts at v0.6.0
+  - **should block or detect** — 10 held-out policy violations
+    (`VIOLATIONS`, deliberately not copied from the topic examples)
+  - prints `BLOCK` / `watch` (detect-mode hit) / `pass` per prompt and
+    exits **1 if any benign prompt is blocked**
 
 ## When to re-run
 
-Whenever the underlying graph changes — i.e. after `graphify update .`:
+Labeller — whenever the underlying graph changes, i.e. after `graphify update .`:
 
 ```bash
 graphify update .
@@ -29,12 +41,21 @@ takes ~28s and ~$0.05 per run. If you re-run without changing the
 underlying communities, you'll get the same labels (deterministic
 seed + low temperature).
 
+Probe — after any change to `GUARDRAIL_TOPICS` / content filters in
+`infra-cdk/lib/ai-stack.ts` **and** deploying the AI stack, and after adding
+demo sample prompts to `/chat` or `/manny`:
+
+```bash
+python3 scripts/guardrail_probe.py        # v0.6.0 baseline: 0/43 benign blocked
+```
+
 ## Conventions
 
-- **Bedrock model** — hardcoded to `global.anthropic.claude-haiku-4-5-20251001-v1:0`
-  with `maxTokens=60`, `temperature=0.1`. Don't bump tokens — the LLM
-  produces a single line and the regex post-processor strips quotes /
-  trailing punctuation
+- **Bedrock model** — the labeller is hardcoded to
+  `global.anthropic.claude-haiku-4-5-20251001-v1:0` with `maxTokens=60`,
+  `temperature=0.1`. Don't bump tokens — the LLM produces a single line and
+  the regex post-processor strips quotes / trailing punctuation. (Haiku 4.5
+  still accepts `temperature`; the Sonnet 5.5 chat tier does not.)
 - **Concurrency** — 8 concurrent Bedrock calls via
   `ThreadPoolExecutor(max_workers=8)`. Bedrock Haiku CRIP for
   ap-northeast-2 handles this comfortably; bump cautiously
@@ -44,12 +65,20 @@ seed + low temperature).
 - **Audit file** — `community_labels.json` is the diff-friendly id→name
   ground truth. Code reviewers should look there, not at the patched
   graph.html
+- **Probe sample sources are parsed, not imported** — if you rename
+  `CHAT_SAMPLES` / `SAMPLE_QUERIES_BY_PERSONA` or change their literal
+  shape, update `demo_samples()` in the probe too. Add new held-out
+  violations rather than copying topic examples (that would only test
+  memorisation)
 
 ## Gotchas
 
-- **AWS credentials** — uses default boto3 chain. On the dev EC2, that's
-  the `VscodeServerStack-VSCode-Role`. Other roles may not have Bedrock
-  access; the script will fail with `AccessDeniedException`
+- **AWS credentials** — both scripts use the default boto3 chain. On the dev
+  EC2, that's the `VscodeServerStack-VSCode-Role`. Other roles may not have
+  Bedrock (`InvokeModel` / `ApplyGuardrail`) access; the scripts fail with
+  `AccessDeniedException`
+- **Probe hits the real guardrail** — it measures what is deployed, not
+  what `ai-stack.ts` says. Run it only after `cdk deploy` of the AI stack
 - **graphify-out/ is gitignored** — re-running `graphify update .` from
   the repo root regenerates it. The `web/public/codegraph/*` copies are
   the shipped snapshot
@@ -60,5 +89,6 @@ seed + low temperature).
 ## Related
 
 - `docs/decisions/ADR-004-codegraph-iframe.md` — iframe vs server render
+- `docs/decisions/ADR-011-guardrail-policy.md` — guardrail tier / topic modes / probe baseline
 - `web/lib/pdf-export.ts` — could be used by a future scripts/export-* helper
 - [graphify CLI](https://github.com/safishamsi/graphify) — upstream tool

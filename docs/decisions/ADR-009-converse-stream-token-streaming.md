@@ -61,10 +61,16 @@ agent loop continues instead of crashing on a streaming-boundary edge case.
 
 ### Constraints
 - Any new chat-tier Bedrock model **must** support the `converse_stream`
-  API (not just `converse`). The current model id
-  `global.anthropic.claude-sonnet-4-6` supports both. ADR-001's model
+  API (not just `converse`). The current model id (v0.6.0)
+  `global.anthropic.claude-sonnet-5-5` does. ADR-001's model
   routing table assumes streaming compatibility; cross-reference there
   before swapping.
+- Since v0.6.0 the stream also carries `reasoningContent` deltas (Sonnet 5.5
+  thinks by default). They are not forwarded to the client; `agent.py`
+  rebuilds reasoning / text / toolUse blocks in stream order and replays
+  reasoning blocks unchanged (signature included) in the next tool round.
+  The output guardrail runs on the finished answer, after the last delta
+  (ADR-011), so streaming stays token-level.
 
 ## Alternatives considered
 

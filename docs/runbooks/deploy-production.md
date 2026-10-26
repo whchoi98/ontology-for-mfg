@@ -1,7 +1,7 @@
 # Runbook — Production deploy (API + Web)
 
 - **Owner**: ontology-mfg-dev
-- **Last reviewed**: 2026-05-09
+- **Last reviewed**: 2026-10-24 (v0.6.0)
 - **Severity**: Standard
 - **Scope**: Production (mfg-ontology.whchoi.net)
 
@@ -9,6 +9,37 @@
 
 Any code-only change to `api/` or `web/`. **Infra changes** (new env var,
 new IAM permission, new resource) require CDK — see `infra-cdk/CLAUDE.md`.
+
+## Deploy order when a release touches infra (v0.6.0 and later)
+
+When CDK stacks change in the same release as the images, deploy in this
+order — **EdgeStack before the new API image** is mandatory for auth
+changes:
+
+1. **DataStack** (only if `data-stack.ts` changed). Neptune engine bumps:
+   minor versions within 1.4.x are in-place; never cross a major through
+   CloudFormation — snapshot + CLI upgrade first, then align
+   `engineVersion`. (v0.6.0's 1.4.7.0 → 1.4.8.1 was applied 2026-10-24,
+   snapshot `ontology-mfg-dev-neptune-pre-1-4-8-1-20261024`.)
+2. **AIStack** (guardrail tier / topics, AOSS access policy), then run
+   `python3 scripts/guardrail_probe.py` — must print
+   `blocked benign prompts: 0/…` (exit 0). Do this before the API image so
+   the new input/output checks run against the Korean-capable STANDARD
+   guardrail, not the old CLASSIC one.
+3. **ComputeStack** (IAM — e.g. Neptune read-only role).
+4. **EdgeStack** (us-east-1 — Lambda@Edge, Cognito). Wait until the
+   distribution is fully deployed (Lambda@Edge replicas update globally):
+   ```bash
+   aws cloudfront wait distribution-deployed --id <DIST_ID>
+   ```
+5. **Images** — Steps 1–4 below (API + web).
+
+Why the edge goes first: since v0.6.0 `/api/auth/callback` rejects a login
+without a matching OAuth `state` (`400 invalid_oauth_state`). Only the new
+Lambda@Edge sends unauthenticated viewers to `/api/auth/login`, which sets
+the `mfg_oauth_state` cookie. Old edge + new API = every edge-initiated
+login fails. New edge + old API still works (old `/login` and `/callback`
+ignore `state`), so this order is also safe to roll back.
 
 ## Pre-flight checks
 
@@ -117,9 +148,13 @@ aws ecs describe-services \
   --query 'services[].{name:serviceName,running:runningCount,deploys:length(deployments),state:deployments[0].rolloutState}' \
   --output table
 
-# Public smoke (302 = Cognito auth gate, expected)
+# Public smoke — Lambda@Edge gate (302 → /api/auth/login, expected)
 curl -sS -o /dev/null -w "%{http_code} → %{redirect_url}\n" --max-redirs 0 \
   https://mfg-ontology.whchoi.net/
+
+# Login entrypoint — 307 → Cognito Hosted UI with &state=..., sets mfg_oauth_state
+curl -sS -D - -o /dev/null --max-redirs 0 \
+  https://mfg-ontology.whchoi.net/api/auth/login | grep -iE "^(location|set-cookie):"
 
 # Image-level verification (optional — confirm new build shipped)
 docker run --rm --entrypoint sh \
@@ -128,6 +163,10 @@ docker run --rm --entrypoint sh \
 ```
 
 ## Rollback
+
+Image rollback after an EdgeStack deploy is safe (see the order section
+above). Rolling the **EdgeStack** back while the new API image is live is
+not — roll the API image back first.
 
 ECR tag `latest` is the current pointer. To roll back, push the previous
 image's digest as `latest`:
@@ -153,5 +192,7 @@ aws ecs update-service --cluster ontology-mfg-dev-cluster \
 ## Related
 
 - ADR-007 — CloudFront SSE compression disabled
+- ADR-011 — guardrail policy + `scripts/guardrail_probe.py` acceptance gate
+- `docs/runbooks/auth-cognito.md` — OAuth `state` flow
 - `infra-cdk/CLAUDE.md` — when CDK is needed instead
 - `docs/runbooks/incident-response.md` — if deploy fails health checks

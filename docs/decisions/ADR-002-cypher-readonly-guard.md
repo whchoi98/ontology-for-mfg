@@ -1,6 +1,7 @@
 # ADR-002 — Read-only Cypher gateway via deterministic deny-list
 
-- **Status**: Accepted
+- **Status**: Accepted — amended 2026-10-24 (v0.6.0: IAM read-only role,
+  normalised matching, row caps)
 - **Date**: 2026-05-09
 - **Related commit**: `49a7a9c`
 - **Triggered by**: Kiro review-gate (Stop hook) flagging Cypher injection
@@ -39,6 +40,29 @@ On match, the tool returns a structured error
 can course-correct without touching the graph. System prompt also
 strengthened to say "READ-ONLY ONLY".
 
+### Amendment — v0.6.0 (2026-10-24)
+
+Three layers were added on top of the deny-list:
+
+1. **Normalised matching** — `_strip_cypher_comments()` turns `//` and
+   `/* */` comments into whitespace (string literals preserved) and drops
+   backticks, and the deny-list runs on both the raw text and that copy.
+   `LOAD/**/CSV` and `` CALL `db`.labels() `` no longer slip through. The
+   query that executes is the comment-stripped form (semantically
+   identical).
+2. **Cost caps on accepted reads** — `_cap_rows()` appends `LIMIT 100` or
+   clamps a larger / parameterised trailing `LIMIT`; `_truncate_rows()`
+   bounds the tool result to 100 rows / 32 KB and adds `truncated`,
+   `rows_returned_by_db` and a Korean hint so the model narrows the query.
+   `agent._bound_tool_result()` backstops every tool result at 40 KB.
+   Without this, `MATCH (t:Telemetry) RETURN t` pulled thousands of nodes
+   into the next `converse_stream` toolResult.
+3. **IAM read-only role (the "belt")** — the API task role's
+   `neptune-db:*` was narrowed to `neptune-db:ReadDataViaQuery` +
+   `neptune-db:GetQueryStatus` (`infra-cdk/lib/compute-stack.ts`, locked by
+   `compute-stack.test.ts`). The loader task writes with its own role, so
+   even a deny-list bypass cannot mutate the graph.
+
 ## Alternatives Considered
 
 | Option | Pros | Cons | Why not |
@@ -46,7 +70,7 @@ strengthened to say "READ-ONLY ONLY".
 | Stronger system prompt only | Simple | Probabilistic — model can still emit bad Cypher | Insufficient |
 | Bedrock Guardrails topic for Cypher | Native | Topic config is brittle, doesn't compose with deny-list confidence | Not deterministic |
 | Cypher AST parser + write-clause check | Bulletproof | Adds runtime dependency, parse cost | Overkill for PoC |
-| Read-only Neptune database role | Belt-and-braces best | Requires task-role refactor + IaC change | Worth doing as belt; deny-list ships first |
+| Read-only Neptune database role | Belt-and-braces best | Requires task-role refactor + IaC change | Deny-list shipped first; IAM role added in v0.6.0 |
 
 ## Consequences
 
@@ -57,19 +81,29 @@ strengthened to say "READ-ONLY ONLY".
   - 3 read-only samples pass (MATCH, OPTIONAL MATCH, UNWIND)
   - Independent of Bedrock model rotation / prompt tweaks
 - **Trade-offs**:
-  - Regex won't catch obfuscated / case-mixed-with-comments attacks
-    (e.g. `/* */ DEL/* */ETE`) — `\b` boundaries help but aren't perfect
+  - Regex is still not a parser — splitting a keyword itself (e.g.
+    `DEL/* */ETE`) normalises to `DEL ETE` (not executable Cypher either),
+    and a keyword inside a string literal is a false positive. Since
+    v0.6.0 the IAM policy is the hard guarantee; the deny-list is the fast,
+    explainable first wall
   - Forbidden APOC procedures whitelisted (read-only set:
     coll/convert/map/meta/text/util)
+  - Row caps mean the model sees partial answers for broad queries; the
+    `truncated` marker tells it to aggregate or narrow
 - **Follow-ups**:
-  - Add Neptune IAM read-only role for the API task (defense-in-depth at
-    AWS layer)
+  - ~~Add Neptune IAM read-only role for the API task~~ — done in v0.6.0
   - Consider GitHub Action that runs the deny-list against a corpus of
-    LLM samples on every PR to detect regressions
+    LLM samples on every PR to detect regressions (the bypass corpus in
+    `tests/api/routers/test_chat_tools.py` covers the known cases)
 
 ## References
 
-- Code: `api/routers/chat.py:32-50` (`_tool_neptune`),
-  `api/routers/chat.py:33-48` (`_CYPHER_WRITE_PATTERN`)
+- Code: `api/routers/chat.py` — `_CYPHER_WRITE_PATTERN`,
+  `_strip_cypher_comments`, `_cap_rows`, `_truncate_rows`, `_tool_neptune`;
+  `api/services/agent.py` — `MAX_TOOL_RESULT_BYTES` / `_bound_tool_result`;
+  `infra-cdk/lib/compute-stack.ts` — API task role Neptune statement
+- Tests: `tests/api/routers/test_chat_tools.py`,
+  `infra-cdk/test/compute-stack.test.ts`
 - Stop hook: `[node "${CLAUDE_PLUGIN_ROOT}/scripts/stop-review-gate-hook.mjs"]`
-- CHANGELOG: `0.3.0 — 2026-05-09 § Fixes — fix(security)`
+- CHANGELOG: `0.3.0 — 2026-05-09 § Fixes — fix(security)`,
+  `0.6.0 — 2026-10-24 § Auth / security`

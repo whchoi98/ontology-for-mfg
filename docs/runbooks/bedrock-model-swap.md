@@ -1,7 +1,7 @@
 # Runbook — Bedrock model swap (CRIP rotation)
 
 - **Owner**: ontology-mfg-dev
-- **Last reviewed**: 2026-05-15
+- **Last reviewed**: 2026-10-24 (v0.6.0 — Sonnet 5.5)
 - **Severity**: Standard
 - **Scope**: Production + Dev
 
@@ -25,12 +25,35 @@ The Haiku 4.5 follow-up generator (`services/followups.py`) uses the
 blocking `converse` and is unaffected — it's a single-shot 300-token
 call where streaming buys nothing.
 
+## Request-shape requirements (Sonnet 5.x, v0.6.0+)
+
+The chat tier (`api/services/agent.py`) sends what Claude Sonnet 5.5
+accepts. Check these before swapping to another model:
+
+- **No sampling parameters** — Sonnet 5.5 rejects `temperature` (verified
+  live), so `inferenceConfig` carries only `maxTokens`. A model that
+  *requires* a temperature needs a code change, not just an id swap.
+- **Thinking counts toward `maxTokens`** — chat uses 8192. Lowering it can
+  cut answers off mid-thought (`stop: max_tokens`).
+- **Effort** — `MFG_SONNET_EFFORT` (`low|medium|high|xhigh|max`, default
+  `low`) is sent as `additionalModelRequestFields.output_config.effort`.
+  Set it to an empty string for a model that rejects the field. Higher
+  effort = more thinking = later first token.
+- **Reasoning blocks** — `reasoningContent` blocks (incl. `signature` /
+  `redactedContent`) are replayed unchanged in the tool loop. Don't strip
+  or edit them when changing the agent.
+- **Profiles** — Sonnet 5.5 is offered as a `global.*` inference profile
+  only (no `apac.*`).
+- The Haiku tier (8D writer, follow-ups, community labeller) stays on Haiku
+  4.5 and still sends `temperature`; moving it to a 5.x model needs the same
+  request-shape review.
+
 ## When to use
 
 - AWS rotates a Bedrock CRIP id (Cross-Region Inference Profile)
 - A model degrades in latency / availability and you want to fail
   over to the alternate (Sonnet ↔ Haiku, or different region)
-- Trying out a newer model version (Sonnet 4.7, Haiku 5.0, etc.)
+- Trying out a newer model version (a newer Sonnet / Haiku generation)
 
 ## Pre-flight checks
 
@@ -52,8 +75,9 @@ Edit `api/config.py`:
 ```python
 sonnet_model: str = os.environ.get(
     "MFG_SONNET_MODEL_ID",
-    "global.anthropic.claude-sonnet-4-6"     # ← change here
+    "global.anthropic.claude-sonnet-5-5"     # ← change here
 )
+sonnet_effort: str = os.environ.get("MFG_SONNET_EFFORT", "low")   # ← "" to omit
 haiku_model: str = os.environ.get(
     "MFG_HAIKU_MODEL_ID",
     "global.anthropic.claude-haiku-4-5-20251001-v1:0"   # ← or here
@@ -102,7 +126,7 @@ treat this as theoretical.)
 After redeploy:
 
 ```bash
-# 8D phase chip should show the new model name (Haiku 4.5 / Sonnet 4.6 / ...)
+# 8D phase chip should show the new model name (Haiku 4.5 / Sonnet / ...)
 # Visit https://mfg-ontology.whchoi.net/eight-d, click an incident card,
 # watch the third phase chip — label is derived from the actual runtime model
 
@@ -127,7 +151,8 @@ own pace.
 ## Related
 
 - ADR-001 — Bedrock model routing rationale (Sonnet vs Haiku)
-- `api/config.py` — model id env vars
+- `api/config.py` — model id + effort env vars
+- `api/services/agent.py` — chat request shape (`_MAX_TOKENS`, effort, reasoning replay)
 - `api/services/eight_d_writer.py:48` — writer model selection
 - `api/routers/eight_d.py:_short_model_label` — UI chip label mapping
 - `scripts/label_communities.py:32` — graphify labeller model id

@@ -1,7 +1,7 @@
 # Runbook — Incident response
 
 - **Owner**: ontology-mfg-dev
-- **Last reviewed**: 2026-05-09
+- **Last reviewed**: 2026-10-24 (v0.6.0)
 - **Severity**: Critical
 - **Scope**: Production (mfg-ontology.whchoi.net)
 
@@ -119,6 +119,32 @@ the gzip buffer fills. ADR-007.
   `_INGEST_FALLBACK_LABELS` is being returned (synthetic), which means
   Neptune query failed
 
+### Symptom H — Ordinary chat question answered "죄송합니다. 이 요청은 AMZN Tech 정책에 따라 응답할 수 없습니다."
+
+**Cause**: the input guardrail blocked it (stop reason
+`guardrail_intervened`; since v0.6.0 the guardrail is really applied —
+ADR-011). The UI's guardrail chip names the blocking topic / filter.
+
+**If you see this**:
+- `/ops/guardrail` or CloudWatch: `--filter-pattern "guardrail intervened"`
+  shows `input_check <topic>` hits
+- Run `python3 scripts/guardrail_probe.py` — if a demo sample or ordinary
+  compliance question now blocks, someone changed the guardrail (console
+  edit of DRAFT, or `ai-stack.ts`). Re-deploy the AI stack from `main`
+- Never "fix" this by switching RegulationViolation / HazardousChemical
+  back to BLOCK or MISCONDUCT input above LOW — those were the measured
+  false-positive sources
+
+### Symptom I — Login ends on `400 {"error":"invalid_oauth_state"}`
+
+**Cause**: the viewer reached `/api/auth/callback` without the OAuth
+`state` issued by `/api/auth/login` — almost always an old Lambda@Edge
+(EdgeStack not deployed before the v0.6.0+ API image).
+
+**If you see this**: see `docs/runbooks/auth-cognito.md` § Symptoms.
+Fastest mitigation is rolling the API image back (old callback ignores
+`state`), then deploying EdgeStack.
+
 ## Escalation
 
 If none of the above match:
@@ -134,3 +160,4 @@ If none of the above match:
 - `docs/runbooks/deploy-production.md` — for rollback procedure
 - `docs/runbooks/auth-cognito.md` — for symptom C
 - `docs/runbooks/bedrock-model-swap.md` — for symptom A
+- `docs/decisions/ADR-011-guardrail-policy.md` — for symptom H

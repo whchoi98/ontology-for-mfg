@@ -1,8 +1,9 @@
 # web/CLAUDE.md
 
-Next.js 14 App Router frontend. Dark-theme dashboard for the 12 manufacturing
-scenarios + 22-class object explorer + 5-area ops console + code knowledge
-graph view + global "Manny" floating chatbot.
+Next.js 16 App Router frontend (React 19, Turbopack builds). Dark-theme
+dashboard for the 12 manufacturing scenarios + 22-class object explorer +
+5-area ops console + code knowledge graph view + global "Manny" floating
+chatbot.
 
 ## Layout
 
@@ -14,9 +15,9 @@ web/
 │   ├── manny/                 Chat-only popup surface (loaded into FloatingChat's popup/iframe)
 │   ├── chat/                  B — Bedrock chat (SSE phase chips + markdown + PDF + follow-up chips)
 │   ├── search/                A — hybrid search results + Cytoscape subgraph
-│   ├── insights/              C — KPI strip + chart + Sonnet markdown + PDF export
+│   ├── insights/              C — KPI strip + chart + summary markdown (JSON API, no LLM) + PDF export
 │   ├── spec/                  D — natural-lang req → candidates + standards graph + PDF
-│   ├── compliance/            E — REACH/RoHS/AEC-Q verification
+│   ├── compliance/            E — REACH-SVHC/RoHS substance verdict (incl. 판정 불가)
 │   ├── substitute/            F — 3-pane: req / candidates / common standards
 │   ├── price/                 G — 3-pane: candidate / matrix / best-supplier highlight
 │   ├── lane/                  H — SCM map + reroute banner with PDF export
@@ -44,15 +45,21 @@ web/
 │   ├── SCMMap.tsx             Lane map for /lane
 │   └── GuidedTour.tsx         Optional onboarding tour
 ├── lib/
+│   ├── api-base.ts            apiUrl() — single source of the `/api` prefix
 │   ├── api-client.ts          fetch helpers + SSE streamers (chat, eight_d, sse_stream)
+│   ├── sse-events.ts          TS mirror of api/schemas/sse.py event union
+│   ├── manny-bridge.ts        /manny ↔ FloatingChat same-origin postMessage (ESC close)
 │   ├── persona-context.tsx    useActivePersona() — drives 12 scenarios
 │   ├── pdf-export.ts          Reusable A4 export pipeline (jsPDF + html2canvas)
 │   └── types.ts               TradeLane, CytoscapeGraph, Persona, …
 ├── public/
 │   ├── logos/                 AWS + 3 demo brand SVGs for CompanyLogo
 │   └── codegraph/             graphify output (graph.html, graph.json, …)
+├── __tests__/                 vitest (jsdom) suites — pages, SSE, PDF, api-base
 ├── Dockerfile                 Next standalone runtime; copies public/ explicitly
-└── next.config.js             output: "standalone", reactStrictMode
+├── eslint.config.mjs          ESLint 9 flat config (eslint-config-next 16) — replaces `next lint`
+├── vitest.config.mts          Vitest 4 / Vite 8 (Oxc JSX transform, `@/` alias)
+└── next.config.js             output: "standalone", reactStrictMode (no webpack() hook)
 ```
 
 ## Conventions
@@ -76,7 +83,31 @@ web/
   (`chatStream`, `eightDStream`, internal `sseStream`). Don't reimplement
   EventSource parsing. The chat stream now includes `suggested_followups`
   events; consumers should render them as clickable chips (see `chat/page.tsx`
-  and `manny/page.tsx` for the pattern).
+  and `manny/page.tsx` for the pattern). Every stream ends with a `stop`, also
+  on failure (`error:<status>`, `fetch_error:…`) and on cancel (`aborted`).
+  Consumers guard callbacks with a stream token (drop late events after a
+  cancel / persona switch), cancel on unmount, and render `error` events.
+- **API URLs** — build them with `apiUrl()` from `lib/api-base.ts`
+  (`NEXT_PUBLIC_API_BASE` is the full prefix incl. `/api`); never hardcode
+  `/api/...` in pages or components.
+- **Dynamic route params are Promises** (Next 15+, sync access removed in
+  16). Client pages unwrap them with React `use()`:
+  `function Page({ params }: { params: Promise<{ type: string }> }) { const { type } = use(params); … }`
+  (see `objects/[type]`, `ops/[area]`). Type the props inline — don't use the
+  generated global `PageProps<'/route'>` helper: CI runs `tsc` before
+  `next build`, when `.next/types` doesn't exist yet. Tests pass
+  `Promise.resolve({...})` inside `<Suspense>` + `await act(...)`.
+- **Nullable API metrics** — Neptune-backed rows can omit fields or carry
+  `null` (e.g. real SUPPLIED_BY rows have no stock / defect ppm / price delta;
+  price, lead time, OTD, MOQ may be null). Never call `.toFixed()` /
+  `.toLocaleString()` on raw response fields; format through guards (see
+  `num` / `fmt*` in `price/page.tsx`) and render `—` / `정보 없음`, not 0.
+  Respect `summary.price_available` / `leadtime_available` (0 placeholders).
+- **Compliance verdicts** — `/api/compliance` returns
+  `status: compliant | non_compliant | insufficient_data | invalid_input`;
+  `insufficient_data` (`compliant: null`, no substance declaration) must
+  render as its own "판정 불가" state — no data ≠ compliant. Violations use
+  `{regulation, substance, severity, message?}`.
 - **PDF export** — Always go through `lib/pdf-export.ts`. Pass section
   arrays with `accentColor` for category color-coding. Don't inline jsPDF
 - **Chrome dispatch** — `LayoutShell` is the single source of truth for
@@ -90,6 +121,9 @@ web/
 
 ## Gotchas
 
+- **Runtime image has no npm** — the Dockerfile's runtime stage deletes the
+  base image's bundled npm/npx (`node server.js` is all it runs); they carried
+  the image's fixable HIGH scan findings. Use the build stage for npm work.
 - **Next.js standalone needs explicit `public/` copy** — Dockerfile must
   `COPY --from=build /app/public ./public`. Without it, `/codegraph/*`,
   `/logos/*`, favicon all 404.
@@ -108,14 +142,47 @@ web/
   in-page iframe modal instead. Firefox / Safari respect popup features and
   open a real window. Both target `/manny` (same-origin → Cognito cookies +
   SSE just work). See ADR-010.
+- **Turbopack is the default bundler** (`next dev` and `next build`).
+  `next build` fails if `next.config.js` gains a `webpack()` hook — migrate
+  it to `turbopack` options or switch the build script to `next build --webpack`.
+  `next dev` writes to `.next/dev`, so dev and build can run concurrently.
+- **Next owns `tsconfig.json` `jsx` and `next-env.d.ts`** — Next 16 forces
+  `"jsx": "react-jsx"` and rewrites `next-env.d.ts` (it imports
+  `.next/types/routes.d.ts` after a build, `.next/dev/types/…` after `next dev`).
+  Don't hand-edit; commit the post-`next build` variant. Vitest sets its own
+  JSX runtime (`oxc.jsx` in `vitest.config.mts`) so it doesn't depend on it.
+- **Vitest 4 runs on Vite 8 (Oxc, not esbuild)** — the `esbuild` config key
+  is deprecated/ignored for JSX; use `oxc` options.
+- **`react-simple-maps` 3.0.0 + `overrides`** — 3.0.0 declares React ≤ 18
+  peers but only uses `forwardRef` + `propTypes` (ignored by React 19), so
+  `package.json` `overrides` maps its `react`/`react-dom` peers to ours. This
+  keeps plain `npm ci` (CI and Dockerfile) working without
+  `--legacy-peer-deps`. It still pulls d3 v2 / d3-color 1.0.1 transitively;
+  `react-simple-maps` 5.x (React 19 peers, d3 v3) is the upgrade path.
+- **ESLint** — `npm run lint` (`eslint .`). React-Compiler readiness rules
+  from eslint-plugin-react-hooks v7 (`set-state-in-effect`, `refs`,
+  `immutability`) are downgraded to warnings until the fetch-in-effect code is
+  refactored. Stay on ESLint 9 — several bundled plugins don't list ESLint 10
+  as a peer yet, which would break plain `npm ci`.
+- **Known audit residue** — `npm audit` reports 3 moderate advisories in
+  Tailwind 3's `postcss-nested` → `postcss-selector-parser` (build-time only,
+  our own CSS). Fixed only by Tailwind 4 (out of scope for now).
 - **`/manny` must stay chrome-less** — `LayoutShell` recognizes the path
   and renders only `{children}`. If you add a sidebar to it, the iframe
   modal will show a nested sidebar inside the modal frame.
 
-## TypeScript
+## Commands
 
 ```bash
+cd web && npm ci                              # plain npm ci — no --legacy-peer-deps needed
 cd web && ./node_modules/.bin/tsc --noEmit   # strict, must be clean
-cd web && npm run build                       # next build (also runs tsc)
-cd web && npm run dev                         # http://localhost:3000
+cd web && npm test                            # vitest 4 (jsdom) — __tests__/*.test.ts(x)
+cd web && npm run lint                        # eslint . (flat config; `next lint` is gone in Next 16)
+cd web && npm run build                       # next build (Turbopack; also runs tsc + route type validation)
+cd web && npm run dev                         # next dev (Turbopack) → http://localhost:3000
 ```
+
+Standalone smoke (mirrors the Dockerfile): after `npm run build`, copy
+`public/` → `.next/standalone/public` and `.next/static` →
+`.next/standalone/.next/static`, then `PORT=3000 node .next/standalone/server.js`.
+ALB health check: `GET /api/health-web` → `{"status":"ok"}`.

@@ -1,8 +1,16 @@
-# ADR-001 — Bedrock model routing: Sonnet 4.6 for chat, Haiku 4.5 for structured writers
+# ADR-001 — Bedrock model routing: Sonnet for chat (4.6 → 5.5 in v0.6.0), Haiku 4.5 for structured writers
 
-- **Status**: Accepted
+- **Status**: Accepted — amended 2026-10-24 (v0.6.0: chat tier → Sonnet 5.5)
 - **Date**: 2026-05-09
 - **Related commit**: `e42810a`
+
+> **v0.6.0 amendment** — the workload split stands, but the chat tier is
+> now `global.anthropic.claude-sonnet-5-5` (global profile only) with
+> `MFG_SONNET_EFFORT` (default `low`) instead of a temperature, and
+> `maxTokens` 8192 because thinking counts toward it. `/api/insights` does
+> not call Bedrock (template summary over Neptune aggregates). The Haiku 4.5
+> tier also serves the `/chat` follow-up generator. Sections below are the
+> original 2026-05-09 record.
 
 ## Context
 

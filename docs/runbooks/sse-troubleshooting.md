@@ -1,8 +1,8 @@
 # SSE troubleshooting runbook
 
-When `/api/chat`, `/api/eight-d`, or `/api/insights` feels slow, hangs,
+When `/api/chat` (also used by Manny) or `/api/eight-d` feels slow, hangs,
 or drops mid-stream — work through this decision tree before paging
-anyone.
+anyone. (`/api/insights` is a plain JSON POST, not SSE.)
 
 ## Quick symptom map
 
@@ -12,7 +12,8 @@ anyone.
 | Chat starts streaming, then dies mid-response, no `stop` | Mid-stream exception or CloudFront idle-timeout | §2 |
 | Chat returns immediately with one error chip | Bedrock auth / throttling | §3 |
 | Stream never starts (spinner forever) | Upstream connection / ALB / Cognito | §4 |
-| `suggested_followups` chips never appear | Follow-up generator failure | §5 |
+| `suggested_followups` chips never appear | Follow-up generator failure / 5s budget | §5 |
+| Chat stops at once with "정책에 따라 응답할 수 없습니다" | Input guardrail block (`stop: guardrail_intervened`) | `incident-response.md` § Symptom H |
 
 ---
 
@@ -74,8 +75,12 @@ indefinitely under normal flow. If a `delta` doesn't arrive within 60s
 aws elbv2 describe-load-balancer-attributes \
   --load-balancer-arn <ALB_ARN> | grep idle_timeout
 ```
-Bump to 300s if mid-stream long pauses are expected (rare with
-Sonnet 4.6 at 2048 maxTokens).
+Bump to 300s if mid-stream long pauses are expected. Since v0.6.0 the
+chat model (Sonnet 5.5) thinks before answering and `reasoningContent`
+deltas are **not** forwarded to the client, so a higher
+`MFG_SONNET_EFFORT` means a longer quiet period before the first text
+`delta` (sse-starlette keep-alive pings still flow). Keep the default
+`low` for the demo.
 
 ### Check 3: CloudFront idle timeout
 CloudFront has its own origin idle timeout (default 30s, configurable
@@ -101,14 +106,18 @@ The error chip includes the model id. Cross-reference
 
 ### Check 2: IAM permissions
 ```bash
-aws bedrock-runtime invoke-model \
-  --model-id global.anthropic.claude-sonnet-4-6 \
-  --body '{"anthropic_version":"bedrock-2023-05-31","messages":[{"role":"user","content":"hi"}],"max_tokens":50}' \
-  /tmp/out.json
+aws bedrock-runtime converse \
+  --model-id global.anthropic.claude-sonnet-5-5 \
+  --messages '[{"role":"user","content":[{"text":"hi"}]}]' \
+  --inference-config '{"maxTokens":1024}'
+# Do NOT pass temperature — Sonnet 5.5 rejects it (ValidationException)
 ```
 Run this AS the API task role (`aws ecs execute-command` into a task).
 If denied here, the task role lacks `bedrock:InvokeModel` on this
-model. Check `infra-cdk/lib/compute-stack.ts` for the policy.
+model. Check `infra-cdk/lib/compute-stack.ts` for the policy. A
+`ValidationException` mentioning `temperature` / `top_p` means a sampling
+parameter crept back into the request (see `bedrock-model-swap.md`
+§ Request-shape requirements).
 
 ### Check 3: Cross-region inference profile availability
 APAC inference profiles can be unavailable temporarily. Test with the
@@ -147,15 +156,18 @@ The follow-up generator is fail-soft by design — failures degrade to
 `[]` and the UI renders nothing instead of crashing.
 
 ### Check 1: Did the chat answer complete?
-Follow-ups generate AFTER `stop` is emitted. If the chat stream
-errored mid-stream, no follow-ups are generated.
+Follow-ups are generated when the agent's `stop` arrives and are emitted
+just *before* it is forwarded (clients that close on `stop` still get
+them). If the chat stream errored mid-stream, no follow-ups are generated.
 
 ### Check 2: Logs `mfg.followups`
 ```bash
 aws logs tail /aws/ecs/ontology-mfg-dev-api --follow \
-  --filter-pattern "followups generation failed"
+  --filter-pattern "followups generation"
 ```
-The Haiku 4.5 follow-up call is throttled-prone (cheap model, busy).
+Matches both `followups generation failed: …` and `followups generation
+timed out after 5.0s` (v0.6.0 budget — chips are skipped rather than
+delaying `stop`). The Haiku 4.5 follow-up call is throttled-prone (cheap model, busy).
 If you see frequent failures, escalate to a higher inference profile
 or implement a retry. Cost-wise, retrying 300-token calls is fine.
 

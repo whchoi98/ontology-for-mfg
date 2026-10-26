@@ -8,9 +8,13 @@ locally and understanding the gates.
 
 | Job | What it does | Local mirror |
 |-----|--------------|--------------|
-| `api` | `pip install` requirements, `pytest -v`, `ruff check`, `black --check` | `make venv && make test` |
-| `web` | `npm ci`, `tsc --noEmit`, `next build` | `cd web && npm ci && npm run build` |
-| `cdk` | `npm ci`, `npm test` (Jest invariants) | `cd infra-cdk && npm ci && npm test` |
+| `api` | `pip install -r requirements.txt -r requirements-dev.txt`, `pytest -v`, `pip-audit -r requirements.txt`, `ruff check .`, `black --check .` | `make venv && make test && ruff check . && black --check .` |
+| `web` | `npm ci`, `tsc --noEmit`, `npm test` (vitest), `npm audit --omit=dev --audit-level=high`, `next build` | `cd web && npm ci && npm test && npm run build` |
+| `cdk` | `npm ci`, `npm test` (Jest invariants), `npm audit --audit-level=high` | `cd infra-cdk && npm ci && npm test` |
+
+Python 3.12 and Node 24. `requirements.txt` is only
+`-r api/requirements.txt -r loader/requirements.txt` — the exact pins the
+images install — so pytest and `pip-audit` cover what actually ships.
 
 All three run on Ubuntu (x86_64) — even though production runs ARM64,
 CI tests pure-Python and pure-TS code that doesn't depend on the build
@@ -26,13 +30,15 @@ python3.12 -m venv .venv-ci
 source .venv-ci/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 pytest -v                        # the failing assertion
-ruff check .                     # if ruff failed
-black --check .                  # if black failed
+pip-audit -r requirements.txt    # if pip-audit failed
+ruff check .                     # if ruff failed (ruff check --fix . for autofixes)
+black --check .                  # if black failed (black . to reformat)
 ```
 
-Ruff and black failures are non-blocking (`|| true` in the workflow)
-but should still be fixed — CI ignores them today as a courtesy, not as
-a policy.
+Since v0.6.0 **ruff and black are blocking** (the `|| true` was removed).
+A `pip-audit` finding means a shipped pin has a known vulnerability — bump
+it in `api/requirements.txt` or `loader/requirements.txt` (never only in a
+Dockerfile) and re-run the suite.
 
 ### `web` job failed
 
@@ -41,8 +47,15 @@ cd web
 rm -rf node_modules .next
 npm ci                           # not npm install — CI uses ci
 ./node_modules/.bin/tsc --noEmit
+npm test                         # vitest (jsdom)
+npm audit --omit=dev --audit-level=high
 npm run build                    # also runs tsc internally
 ```
+
+Plain `npm ci` must work — no `--legacy-peer-deps` (see the
+`react-simple-maps` `overrides` note in `web/CLAUDE.md`). The 3 moderate
+advisories in Tailwind 3's `postcss-selector-parser` chain are known
+residue; they don't fail `--audit-level=high`.
 
 Common `web` failures:
 - **TS error in a path you didn't touch** — likely a transitive type
@@ -63,9 +76,19 @@ npm ci
 npm test
 ```
 
-The Jest suite locks two invariants:
-- IAM scope on the ECS task role (must not grant `*` on Bedrock)
-- CloudFront `/api/*` origin compression must be `false` (ADR-007)
+The Jest suite (36 tests) locks, among others:
+- IAM scope on the ECS task roles (no `Action:*` on `Resource:*`); the API
+  task role may only *read* Neptune (`ReadDataViaQuery` / `GetQueryStatus`,
+  ADR-002)
+- CloudFront compression must be `false` on at least one behavior (ADR-007)
+- Guardrail on the STANDARD tier via the APAC profile; topic modes
+  IPConfidential / CompetitorDisparagement BLOCK, RegulationViolation /
+  HazardousChemical NONE; MISCONDUCT LOW / HIGH (ADR-011)
+- Bedrock KB deferred to post-deploy; AOSS data access policy lists the KB,
+  loader and API task roles
+- Neptune `engineVersion` 1.4.8.1 with Snapshot deletion / replace policy
+- Lambda@Edge on `nodejs22.x`, redirecting to `/api/auth/login` and
+  bypassing `/api/auth/*`; no custom resource sets Cognito passwords
 
 If these fail, **don't** loosen the test. The invariant is load-bearing
 for production correctness.
@@ -100,7 +123,7 @@ version-sync step.
 
 Touch only `.github/workflows/ci.yml`. New jobs should:
 - Run in parallel (independent `jobs:` entry, no `needs:` unless required)
-- Pin language versions (Python 3.12, Node 20)
+- Pin language versions (Python 3.12, Node 24)
 - Use `cache: pip` / `cache: npm` for the language setup action
 - Fail fast — don't add `continue-on-error: true` without writing why
 - Mirror locally — document the equivalent local command in this runbook
@@ -112,8 +135,8 @@ The usual suspects, in order:
 2. **Floating dep version** — CI gets a fresh resolve, you don't.
    Check `package-lock.json` / `requirements.txt` for unpinned ranges.
 3. **Platform divergence** — CI is Ubuntu x86_64, dev EC2 is AL2023
-   arm64. Pure Python and pure TS shouldn't care, but native deps
-   (e.g., `gremlinpython` C extensions) sometimes do.
+   arm64. Pure Python and pure TS shouldn't care, but native wheels
+   (e.g. `cryptography` behind `PyJWT[crypto]`) sometimes do.
 4. **Env var assumption** — pytest may depend on an env var you set
    locally without realizing. Add it to the CI step or stop depending
    on it.

@@ -63,9 +63,12 @@ need to skip the real popup there.
 - Predictable UX per browser family. No flicker.
 - Same `/manny` route handles both — single chat surface to test and
   maintain.
-- Same-origin iframe → no postMessage / cross-origin auth gymnastics.
+- Same-origin iframe → no cross-origin auth gymnastics.
 - ESC closes the iframe modal; closing the popup window closes the
-  surface in either case.
+  surface in either case. Because keyboard focus sits inside the iframe,
+  `/manny` forwards ESC to the parent with a same-origin `postMessage`
+  (`web/lib/manny-bridge.ts`, v0.6.0); `FloatingChat` accepts it only from
+  the expected origin and frame.
 
 ### Costs
 - UA-sniffing is fragile in principle. If Chromium ever fixes
