@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import re
+from typing import Literal
 
 from fastapi import APIRouter, Body
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from api.routers.compliance import evaluate_component
@@ -24,10 +25,18 @@ router = APIRouter(tags=["chat"])
 log = logging.getLogger("mfg.chat")
 
 
+class ChatTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=100_000)
+
+
 class ChatRequest(BaseModel):
     msg: str
     session_id: str
     persona: str = "engineer"
+    # Earlier completed turns, oldest first (ADR-012). The agent keeps only complete
+    # pairs and clips them (agent.history_messages); the caps here only reject abuse.
+    history: list[ChatTurn] = Field(default_factory=list, max_length=50)
 
 
 def _tool_search(_name: str, args: dict) -> dict:
@@ -356,7 +365,13 @@ _SYSTEM_PROMPT_TEMPLATE = (
     "(it does not verify AEC-Q qualification; `insufficient_data` means no substance data, not compliant).\n"
     "Never call a tool with empty arguments — every tool requires the listed `required` fields. "
     "If a tool result is empty or errors out, acknowledge briefly and proceed without retrying the same call. "
-    "Format output as Markdown when listing items (tables, bullets, **bold** for IDs).\n\n"
+    "Format output as Markdown when listing items (tables, bullets, **bold** for IDs).\n"
+    # Prior turns are replayed as text only (agent.history_messages) — without this the
+    # model reads its own earlier answers as ungrounded and disowns them.
+    "Earlier assistant turns in this conversation were answered from tool results that "
+    "are not repeated here: treat the facts they state as data you already retrieved, "
+    "resolve references such as '그 부품' or '두 번째 협력사' against them, and call a "
+    "tool again only for values they do not contain.\n\n"
     "Graph schema — the only node labels and relationship types that exist in Neptune "
     "(direction as written):\n"
     # Same registry the loader and tests/integration/test_graph_contract.py use.
@@ -383,7 +398,11 @@ def chat(req: ChatRequest = Body(...)):
         emitted_followups = False
         terminated = False
         try:
-            for event in runner.run_stream(req.msg, session_id=req.session_id):
+            for event in runner.run_stream(
+                req.msg,
+                session_id=req.session_id,
+                history=[t.model_dump() for t in req.history],
+            ):
                 etype = event.get("type")
                 if etype == "delta":
                     text = event.get("text")

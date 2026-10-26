@@ -22,7 +22,8 @@ import json
 import logging
 import time
 from collections import deque
-from collections.abc import Generator
+from collections.abc import Generator, Iterable, Mapping
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from api.aws_clients import bedrock_runtime
@@ -89,6 +90,81 @@ def _run_guardrail(text: str, source: str) -> tuple[dict | None, GuardrailVerdic
         "result": "passed",
         "content": f"{label} 가드레일 통과 ({_GUARDRAIL_SCOPE_KO})",
     }, verdict
+
+
+# Prior turns are held by the client and replayed as text only (ADR-012): two API tasks
+# sit behind the ALB without stickiness, so there is no server-side session to read.
+# Reasoning blocks are not replayed across turns — a thinking block is bound to the
+# exact prefix that produced it, and a persona switch changes the system prompt.
+# Bounded so a long chat cannot grow the request without limit; oldest pairs go first.
+HISTORY_MAX_PAIRS = 6
+HISTORY_MAX_CHARS = 24_000
+_HISTORY_CLIP = {"user": 4_000, "assistant": 6_000}
+
+
+def _clip(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[:limit] + " …(이하 생략)"
+
+
+def history_messages(turns: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Client-held turns → Converse messages: complete user→assistant pairs only
+    (Converse needs strict alternation starting with `user`, and the current question
+    follows), each side clipped, newest HISTORY_MAX_PAIRS within HISTORY_MAX_CHARS."""
+    pairs: list[tuple[str, str]] = []
+    question: str | None = None
+    for turn in turns:
+        role, text = turn.get("role"), str(turn.get("content") or "").strip()
+        if role == "user":
+            question = text or None
+        elif role == "assistant" and question and text:
+            pairs.append(
+                (_clip(question, _HISTORY_CLIP["user"]), _clip(text, _HISTORY_CLIP["assistant"]))
+            )
+            question = None
+        else:  # an answer without its question, or an empty one
+            question = None
+
+    kept: list[tuple[str, str]] = []
+    total = 0
+    for q, a in reversed(pairs[-HISTORY_MAX_PAIRS:]):
+        total += len(q) + len(a)
+        if total > HISTORY_MAX_CHARS:
+            break
+        kept.append((q, a))
+    messages: list[dict[str, Any]] = []
+    for q, a in reversed(kept):
+        messages.append({"role": "user", "content": [{"text": q}]})
+        messages.append({"role": "assistant", "content": [{"text": a}]})
+    return messages
+
+
+def _screen_history(prior: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict | None]:
+    """INPUT-check the replayed *questions* → (history to use, optional `log` event).
+
+    The client supplies the history, so it is unverified: without this a forged turn
+    would carry a question the guardrail blocks into the model's context. A genuine
+    history passed these checks already. Blocked → answer without the history rather
+    than refusing the current question, whose own verdict stays separate."""
+    if not prior or not settings.bedrock_guardrail_id:
+        return prior, None
+    questions = "\n\n".join(m["content"][0]["text"] for m in prior if m["role"] == "user")
+    try:
+        verdict = check_guardrail(questions, "INPUT")
+    except Exception as e:
+        log.warning("guardrail history check failed (fail-open): %s", e)
+        return prior, {
+            "type": "log",
+            "level": "warning",
+            "message": f"이전 대화 가드레일 검사 실패 — 미적용 ({type(e).__name__})",
+        }
+    if verdict.blocked:
+        log.warning("guardrail blocked replayed history: %s", ",".join(verdict.hits))
+        return [], {
+            "type": "log",
+            "level": "warning",
+            "message": "이전 대화가 입력 가드레일을 통과하지 못해 이번 답변의 맥락에서 제외했습니다",
+        }
+    return prior, None
 
 
 # In-process ring buffer of recent tool_call events. Powers /api/ops/trace.
@@ -202,9 +278,19 @@ class AgentRunner:
             return
         yield {"type": "stop", "reason": reason}
 
-    def run_stream(self, user_msg: str, session_id: str) -> Generator[dict, None, None]:
-        # Input guardrail — a blocked question never reaches the model.
-        event, verdict = _run_guardrail(user_msg, "INPUT")
+    def run_stream(
+        self,
+        user_msg: str,
+        session_id: str,
+        history: Iterable[Mapping[str, Any]] = (),
+    ) -> Generator[dict, None, None]:
+        prior = history_messages(history)
+        # Input guardrail — a blocked question never reaches the model. The replayed
+        # questions are screened concurrently so history adds no latency.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            screened = pool.submit(_screen_history, prior)
+            event, verdict = _run_guardrail(user_msg, "INPUT")
+            prior, history_event = screened.result()
         if event:
             yield event
         if verdict and verdict.blocked:
@@ -214,15 +300,18 @@ class AgentRunner:
             }
             yield {"type": "stop", "reason": "guardrail_intervened"}
             return
+        if history_event:
+            yield history_event
         yield {"type": "phase", "phase": "thinking"}
 
-        messages = [{"role": "user", "content": [{"text": user_msg}]}]
+        messages = [*prior, {"role": "user", "content": [{"text": user_msg}]}]
         answer_parts: list[str] = []  # every round's text — what the output guardrail checks
         log.info(
-            "agent.run_stream session=%s tools=%d msg_len=%d",
+            "agent.run_stream session=%s tools=%d msg_len=%d history_pairs=%d",
             session_id,
             len(self.tools),
             len(user_msg),
+            len(prior) // 2,
         )
 
         for round_idx in range(self.max_rounds):

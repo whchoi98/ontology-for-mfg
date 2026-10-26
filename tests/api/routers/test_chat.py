@@ -71,3 +71,29 @@ def test_chat_skips_followups_when_empty(mock_runner_cls, _mock_fu):
     with client.stream("POST", "/api/chat", json={"msg": "ping", "session_id": "s1"}) as r:
         body = "".join(r.iter_text())
     assert "suggested_followups" not in body
+
+
+@patch("api.routers.chat.generate_followups", return_value=[])
+@patch("api.routers.chat.AgentRunner")
+def test_chat_forwards_history_to_the_agent(mock_runner_cls, _mock_fu):
+    mock_runner_cls.return_value.run_stream.return_value = iter(
+        [{"type": "stop", "reason": "end_turn"}]
+    )
+    history = [{"role": "user", "content": "Q1"}, {"role": "assistant", "content": "A1"}]
+    client = TestClient(app)
+    with client.stream(
+        "POST", "/api/chat", json={"msg": "Q2", "session_id": "s1", "history": history}
+    ) as r:
+        assert r.status_code == 200
+        "".join(r.iter_text())
+    kwargs = mock_runner_cls.return_value.run_stream.call_args.kwargs
+    assert kwargs["history"] == history
+
+
+def test_chat_rejects_malformed_history():
+    client = TestClient(app)
+    r = client.post(
+        "/api/chat",
+        json={"msg": "q", "session_id": "s1", "history": [{"role": "system", "content": "x"}]},
+    )
+    assert r.status_code == 422
