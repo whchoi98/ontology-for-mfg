@@ -4,8 +4,6 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as iam from 'aws-cdk-lib/aws-iam';
-import * as cr from 'aws-cdk-lib/custom-resources';
 import * as path from 'path';
 import * as fs from 'fs';
 import { Construct } from 'constructs';
@@ -75,45 +73,10 @@ export class EdgeStack extends Stack {
       username: demoUser.ref, groupName: 'buyer',
     });
 
-    // Custom resource — set permanent password `***ROTATED***` (admin-set, suppress reset)
-    const setPwRole = new iam.Role(this, 'SetPwRole', {
-      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-    });
-    setPwRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['cognito-idp:AdminSetUserPassword'],
-      resources: [this.userPool.userPoolArn],
-    }));
-    setPwRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'));
-    const setPw = new cr.AwsCustomResource(this, 'SetAdminPw', {
-      onUpdate: {
-        service: 'CognitoIdentityServiceProvider',
-        action: 'adminSetUserPassword',
-        parameters: {
-          UserPoolId: this.userPool.userPoolId,
-          Username: 'admin@whchoi.net',
-          Password: '***ROTATED***',
-          Permanent: true,
-        },
-        physicalResourceId: cr.PhysicalResourceId.of('admin-pw'),
-      },
-      role: setPwRole,
-    });
-    setPw.node.addDependency(adminUser);
-    const setPwDemo = new cr.AwsCustomResource(this, 'SetDemoPw', {
-      onUpdate: {
-        service: 'CognitoIdentityServiceProvider',
-        action: 'adminSetUserPassword',
-        parameters: {
-          UserPoolId: this.userPool.userPoolId,
-          Username: 'demo@whchoi.net',
-          Password: '***ROTATED***',
-          Permanent: true,
-        },
-        physicalResourceId: cr.PhysicalResourceId.of('demo-pw'),
-      },
-      role: setPwRole,
-    });
-    setPwDemo.node.addDependency(demoUser);
+    // Passwords are set out-of-band (1Password vault `ontology-mfg-demo`). The former
+    // adminSetUserPassword custom resources were removed: the repo copy of the password
+    // is a scrubbed placeholder, so any redeploy would have reset both demo logins to it.
+    // Removing them is a no-op for Cognito (no onDelete call).
 
     // App client + Hosted UI domain
     const client = new cognito.UserPoolClient(this, 'UserPoolClient', {
@@ -133,18 +96,13 @@ export class EdgeStack extends Stack {
     });
 
     // ==== Lambda@Edge (viewer-request) ====
-    // Lambda@Edge does NOT support env vars — read template, substitute from CDK
-    // resource attributes, and bundle as inline code.
+    // Lambda@Edge does NOT support env vars — the handler redirects to the API's
+    // /api/auth/login (which owns the Cognito URL + OAuth state), so it needs no config.
     const edgeTemplatePath = path.join(__dirname, 'lambda-edge', 'index.js.tmpl');
-    const cognitoDomainStr = `${prefix}.auth.us-east-1.amazoncognito.com`;
-    const callbackUrl = `https://${props.domainName}/api/auth/callback`;
-    const edgeCode = fs.readFileSync(edgeTemplatePath, 'utf-8')
-      .replace('{{COGNITO_DOMAIN}}', cognitoDomainStr)
-      .replace('{{CLIENT_ID}}', client.userPoolClientId)
-      .replace('{{CALLBACK_URL}}', callbackUrl);
+    const edgeCode = fs.readFileSync(edgeTemplatePath, 'utf-8');
 
     const edgeFn = new cloudfront.experimental.EdgeFunction(this, 'EdgeAuthFn', {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(edgeCode),
     });

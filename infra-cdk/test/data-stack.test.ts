@@ -27,6 +27,14 @@ describe('DataStack', () => {
     template.resourceCountIs('AWS::KMS::Key', 5);
   });
 
+  test('Neptune engine 1.4.8.1, snapshot kept if the cluster is ever deleted or replaced', () => {
+    template.hasResource('AWS::Neptune::DBCluster', {
+      Properties: Match.objectLike({ EngineVersion: '1.4.8.1' }),
+      DeletionPolicy: 'Snapshot',
+      UpdateReplacePolicy: 'Snapshot',
+    });
+  });
+
   test('Neptune cluster (serverless v2)', () => {
     template.resourceCountIs('AWS::Neptune::DBCluster', 1);
   });

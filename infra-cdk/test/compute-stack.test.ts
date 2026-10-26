@@ -27,6 +27,35 @@ describe('ComputeStack', () => {
     template.resourceCountIs('AWS::ECR::Repository', 2);
   });
 
+  // The loader task role predates CDK; data/load_search.py now embeds documents with Titan v2.
+  test('loader role may invoke only the Titan v2 embedding model', () => {
+    const policies = Object.values(template.findResources('AWS::IAM::Policy')) as any[];
+    const loader = policies.filter((p) =>
+      JSON.stringify(p.Properties.Roles ?? []).includes('ontology-mfg-dev-loader-task-role'));
+    expect(loader).toHaveLength(1);
+    expect(loader[0].Properties.PolicyDocument.Statement).toEqual([{
+      Effect: 'Allow',
+      Action: 'bedrock:InvokeModel',
+      Resource: 'arn:aws:bedrock:ap-northeast-2::foundation-model/amazon.titan-embed-text-v2:0',
+    }]);
+  });
+
+  // ADR-002 follow-up: the regex deny-list in chat._tool_neptune is the first line of
+  // defence; IAM must also refuse writes so a deny-list bypass cannot mutate the graph.
+  test('API task role can only read Neptune (no write/delete/wildcard)', () => {
+    const neptuneActions: string[] = [];
+    for (const policy of Object.values(template.findResources('AWS::IAM::Policy'))) {
+      for (const stmt of (policy as any).Properties.PolicyDocument.Statement) {
+        const actions = ([] as string[]).concat(stmt.Action);
+        neptuneActions.push(...actions.filter((a) => a.startsWith('neptune-db:')));
+      }
+    }
+    expect(neptuneActions).toContain('neptune-db:ReadDataViaQuery');
+    expect(neptuneActions).not.toContain('neptune-db:*');
+    expect(neptuneActions).not.toContain('neptune-db:connect'); // legacy catch-all
+    expect(neptuneActions.filter((a) => /Write|Delete|Reset|Start/.test(a))).toEqual([]);
+  });
+
   test('ALB listener with /api/* rule', () => {
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
       Conditions: Match.arrayWith([

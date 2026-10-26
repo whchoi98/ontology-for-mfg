@@ -1,10 +1,7 @@
-// Lambda@Edge viewer-request: redirect to Cognito Hosted UI when JWT cookie missing/expired.
-// Values substituted at synth time by EdgeStack (no process.env at edge).
+// Lambda@Edge viewer-request: send viewers without the JWT cookie to the API's login
+// entrypoint, which issues the OAuth `state` before redirecting to the Cognito Hosted UI.
+// No process.env at edge — keep this file free of runtime configuration.
 'use strict';
-
-const COGNITO_DOMAIN = '{{COGNITO_DOMAIN}}';
-const CLIENT_ID      = '{{CLIENT_ID}}';
-const CALLBACK_URL   = '{{CALLBACK_URL}}';
 
 exports.handler = async (event) => {
   const request = event.Records[0].cf.request;
@@ -12,16 +9,15 @@ exports.handler = async (event) => {
   const cookieHeader = headers.cookie ? headers.cookie[0].value : '';
   const hasIdToken = /(?:^|;\s*)mfg_id_token=/.test(cookieHeader);
 
-  if (request.uri.startsWith('/api/auth/callback') || request.uri.startsWith('/api/auth/logout')) {
+  // login / callback / logout / whoami authenticate (or not) on their own.
+  if (request.uri.startsWith('/api/auth/')) {
     return request;
   }
 
   if (!hasIdToken) {
-    const loginUrl = 'https://' + COGNITO_DOMAIN + '/login?client_id=' + CLIENT_ID
-      + '&response_type=code&scope=openid+email&redirect_uri=' + encodeURIComponent(CALLBACK_URL);
     return {
       status: '302', statusDescription: 'Found',
-      headers: { location: [{ key: 'Location', value: loginUrl }] },
+      headers: { location: [{ key: 'Location', value: '/api/auth/login' }] },
     };
   }
   return request;

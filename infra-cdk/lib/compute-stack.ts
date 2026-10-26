@@ -68,8 +68,10 @@ export class ComputeStack extends Stack {
       ],
       resources: ['*'],
     }));
+    // Read-only openCypher (ADR-002): the API never writes the graph — the loader task
+    // has its own role — so a deny-list bypass in chat._tool_neptune still cannot mutate it.
     this.apiTaskRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['neptune-db:*'],
+      actions: ['neptune-db:ReadDataViaQuery', 'neptune-db:GetQueryStatus'],
       resources: [`arn:aws:neptune-db:${this.region}:${this.account}:*/*`],
     }));
     this.apiTaskRole.addToPolicy(new iam.PolicyStatement({
@@ -80,6 +82,18 @@ export class ComputeStack extends Stack {
       actions: ['secretsmanager:GetSecretValue'],
       resources: [`arn:aws:secretsmanager:${this.region}:${this.account}:secret:${prefix}-*`],
     }));
+
+    // ==== Loader task role (created by hand before CDK) — Titan v2 for search embeddings ====
+    // Imported by name; CDK attaches a separate policy and leaves the role's own
+    // LoaderPolicy (Neptune / AOSS / logs) untouched.
+    const loaderRole = iam.Role.fromRoleName(this, 'LoaderTaskRole', `${prefix}-loader-task-role`);
+    new iam.Policy(this, 'LoaderEmbeddingPolicy', {
+      roles: [loaderRole],
+      statements: [new iam.PolicyStatement({
+        actions: ['bedrock:InvokeModel'],
+        resources: [`arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`],
+      })],
+    });
 
     // ==== Web Task Definition (ARM64, 0.5 vCPU / 1 GB) ====
     const webLogs = new logs.LogGroup(this, 'WebLogs', {

@@ -1,4 +1,4 @@
-import { Stack, StackProps, RemovalPolicy, CfnOutput, Tags } from 'aws-cdk-lib';
+import { Stack, StackProps, RemovalPolicy, CfnDeletionPolicy, CfnOutput, Tags } from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as kms from 'aws-cdk-lib/aws-kms';
 import * as s3 from 'aws-cdk-lib/aws-s3';
@@ -65,8 +65,13 @@ export class DataStack extends Stack {
       storageEncrypted: true,
       iamAuthEnabled: true,
       serverlessScalingConfiguration: { minCapacity: 1, maxCapacity: 8 },
-      engineVersion: '1.4.7.0',
+      // Minor bumps within 1.4.x are in-place. Do NOT cross a major (e.g. 1.5) through
+      // CloudFormation — snapshot and upgrade with the CLI first, then align this value.
+      engineVersion: '1.4.8.1',
     });
+    // The graph is reloadable but slow to rebuild — keep a final snapshot.
+    neptuneCluster.cfnOptions.deletionPolicy = CfnDeletionPolicy.SNAPSHOT;
+    neptuneCluster.cfnOptions.updateReplacePolicy = CfnDeletionPolicy.SNAPSHOT;
     new neptune.CfnDBInstance(this, 'NeptuneInstance', {
       dbClusterIdentifier: neptuneCluster.ref,
       dbInstanceClass: 'db.serverless',
